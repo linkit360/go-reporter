@@ -18,7 +18,7 @@ var (
 	SendDuration    prometheus.Summary
 )
 
-func initMetrics(appName string) {
+func Init(appName string) {
 	Success = m.NewGauge("", "", "success", "success")
 	Errors = m.NewGauge("", "", "errors", "errors")
 

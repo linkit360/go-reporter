@@ -18,11 +18,11 @@ type ServerConfig struct {
 	HttpPort string `default:"50308" yaml:"http_port"`
 }
 type AppConfig struct {
-	AppName   string                 `yaml:"app_name"`
-	Collector CollectorConfig        `yaml:"collector"`
-	DbConf    db.DataBaseConfig      `yaml:"db"`
-	Server    ServerConfig           `yaml:"server"`
-	Client    rpcclient.ClientConfig `yaml:"acceptor_client"`
+	AppName        string                 `yaml:"app_name"`
+	Server         ServerConfig           `yaml:"server"`
+	Collector      CollectorConfig        `yaml:"collector"`
+	DbConf         db.DataBaseConfig      `yaml:"db"`
+	AcceptorClient rpcclient.ClientConfig `yaml:"acceptor_client"`
 }
 
 type CollectorConfig struct {

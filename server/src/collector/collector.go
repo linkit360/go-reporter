@@ -25,7 +25,7 @@ type Collector interface {
 type collectorService struct {
 	conf     config.CollectorConfig
 	db       *sql.DB
-	adReport map[int64]*OperatorAgregate // map[campaign][operator]acceptor.Aggregate
+	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
 }
 
 type OperatorAgregate map[int64]adAggregate
@@ -74,13 +74,13 @@ func (mo *moTotal) Inc() {
 
 type moSuccess struct {
 	sync.RWMutex
-	success int64
+	count int64
 }
 
 func (mo *moSuccess) Inc() {
 	mo.Lock()
 	defer mo.Unlock()
-	mo.success++
+	mo.count++
 }
 
 type moUniq struct {
@@ -108,9 +108,9 @@ func (p *pixels) Inc() {
 	p.count++
 }
 
-func Init(acceptorClient acceptor_client.ClientConfig) *Collector {
+func Init(appConfig config.AppConfig) Collector {
 	as := &collectorService{}
-	if err := acceptor_client.Init(acceptorClient); err != nil {
+	if err := acceptor_client.Init(appConfig.AcceptorClient); err != nil {
 		log.Fatal("cannot init acceptor client")
 	}
 	as.adReport = make(map[int64]OperatorAgregate)
@@ -127,7 +127,7 @@ func (as *collectorService) send() {
 	begin := time.Now()
 	var data []acceptor.Aggregate
 	for campaignId, operatorAgregate := range as.adReport {
-		for operatorCode, intAggregate := range *operatorAgregate {
+		for operatorCode, intAggregate := range operatorAgregate {
 			aa := acceptor.Aggregate{
 				ReportDate:   time.Now().Unix(),
 				Provider:     as.conf.Provider,
@@ -136,8 +136,8 @@ func (as *collectorService) send() {
 				LPHits:       intAggregate.LpHits.count,
 				LPMsisdnHits: intAggregate.LpMsisdnHits.count,
 				Mo:           intAggregate.MOTotal.count,
-				MoSuccess:    intAggregate.MOSuccess.success,
-				MoUniq:       len(intAggregate.MOUniq.uniq),
+				MoSuccess:    intAggregate.MOSuccess.count,
+				MoUniq:       int64(len(intAggregate.MOUniq.uniq)),
 				Pixels:       intAggregate.Pixels.count,
 			}
 			data = append(data, aa)
@@ -155,7 +155,7 @@ func (as *collectorService) send() {
 func (as *collectorService) breathe() {
 	begin := time.Now()
 	for campaignId, operatorAgregate := range as.adReport {
-		for operatorCode, _ := range *operatorAgregate {
+		for operatorCode, _ := range operatorAgregate {
 			delete(as.adReport[campaignId], operatorCode)
 		}
 		delete(as.adReport, campaignId)
@@ -173,13 +173,16 @@ func (as *collectorService) check(r rec.Record) error {
 	}
 	// operator code == 0
 	// unknown operator in access campaign
+	if as.adReport == nil {
+		as.adReport = make(map[int64]OperatorAgregate)
+	}
 	_, found := as.adReport[r.CampaignId]
 	if !found {
-		as.adReport = &OperatorAgregate{}
+		as.adReport[r.CampaignId] = OperatorAgregate{}
 	}
 	_, found = as.adReport[r.CampaignId][r.OperatorCode]
 	if !found {
-		as.adReport[r.CampaignId][r.OperatorCode] = &adAggregate{}
+		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{}
 	}
 	return nil
 }

@@ -9,9 +9,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	//"github.com/vostrok/reporter/server/src/handlers"
-	//"github.com/vostrok/reporter/server/src/collector"
+	"github.com/vostrok/reporter/server/src/handlers"
 	m "github.com/vostrok/utils/metrics"
+	"github.com/vostrok/utils/rec"
 )
 
 var cli *Client
@@ -22,32 +22,33 @@ type Client struct {
 	m          *Metrics
 }
 type ClientConfig struct {
-	DSN     string `default:":50307" yaml:"dsn"`
+	Enabled bool   `yaml:"enabled"`
 	Timeout int    `default:"10" yaml:"timeout"`
+	DSN     string `default:":50307" yaml:"dsn"`
 }
 
 type Metrics struct {
 	RPCConnectError m.Gauge
 	RPCSuccess      m.Gauge
-	NotFound        m.Gauge
 }
 
 func initMetrics() *Metrics {
 	metrics := &Metrics{
 		RPCConnectError: m.NewGauge("rpc", "reporter", "errors", "RPC call errors"),
 		RPCSuccess:      m.NewGauge("rpc", "reporter", "success", "RPC call success"),
-		NotFound:        m.NewGauge("rpc", "reporter", "404_errors", "RPC 404 errors"),
 	}
 	go func() {
 		for range time.Tick(time.Minute) {
 			metrics.RPCConnectError.Update()
 			metrics.RPCSuccess.Update()
-			metrics.NotFound.Update()
 		}
 	}()
 	return metrics
 }
 func Init(clientConf ClientConfig) error {
+	if !clientConf.Enabled {
+		return nil
+	}
 	if cli != nil {
 		return nil
 	}
@@ -67,6 +68,9 @@ func Init(clientConf ClientConfig) error {
 }
 
 func (c *Client) dial() error {
+	if !c.conf.Enabled {
+		return nil
+	}
 	if c.connection != nil {
 	}
 
@@ -115,4 +119,41 @@ func call(funcName string, req interface{}, res interface{}) error {
 	}).Debug("rpccall")
 	cli.m.RPCSuccess.Inc()
 	return nil
+}
+
+func IncMO(req rec.Record) error {
+	var res handlers.Response
+	err := call(
+		"Rec.IncMO",
+		req,
+		&res,
+	)
+	return err
+}
+func IncPixel(req rec.Record) error {
+	var res handlers.Response
+	err := call(
+		"Rec.IncPixel",
+		req,
+		&res,
+	)
+	return err
+}
+func IncHit(req rec.Record) error {
+	var res handlers.Response
+	err := call(
+		"Rec.IncHit",
+		req,
+		&res,
+	)
+	return err
+}
+func IncPaid(req rec.Record) error {
+	var res handlers.Response
+	err := call(
+		"Rec.IncPaid",
+		req,
+		&res,
+	)
+	return err
 }
