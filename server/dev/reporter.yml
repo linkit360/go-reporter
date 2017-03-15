@@ -1,0 +1,25 @@
+app_name: reporter
+
+server:
+  rpc_port: 50315
+  http_port: 50316
+
+collector:
+  provider: cheese
+
+db:
+  conn_ttl: -1
+  max_open_conns: 15
+  max_idle_conns: 10
+  timeout: 30
+  name: linkit_test
+  user: test
+  pass: test
+  port: 5432
+  host: localhost
+  ssl_mode: disable
+  table_prefix: xmp_
+
+acceptor_client:
+  dsn: :50313
+  timeout: 10
