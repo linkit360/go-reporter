@@ -2,6 +2,7 @@ package collector
 
 import (
 	"database/sql"
+	"fmt"
 	"sync"
 	"time"
 
@@ -10,58 +11,101 @@ import (
 	acceptor_client "github.com/vostrok/acceptor/rpcclient"
 	acceptor "github.com/vostrok/acceptor/server/src/base"
 	"github.com/vostrok/reporter/server/src/config"
+	m "github.com/vostrok/reporter/server/src/metrics"
 	rec "github.com/vostrok/utils/rec"
 )
-
-//Provider > Operator > Campaign > ReportDate
-
-//ReportDate   int64  `json:"report_date,omitempty"`
-//Campaign     int32  `json:"id_campaign,omitempty"`
-//Provider     string `json:"id_provider,omitempty"`
-//Operator     int32  `json:"id_operator,omitempty"`
-//LPHits       int32  `json:"total_lp_hits,omitempty"`
-//LPMsisdnHits int32  `json:"total_lp_msisdn_hits,omitempty"`
-//Mo           int32  `json:"total_mo,omitempty"`
-//MoUniq       int32  `json:"total_mo_uniq,omitempty"`
-//MoSuccess    int32  `json:"total_mo_success_charge,omitempty"`
-//Pixels       int32  `json:"total_pixels_sent,omitempty"`
-
-var svc *collectorService
 
 type Collector interface {
 	IncMO(r rec.Record) error // mo, mo uniq, mo success
 	IncPixel(r rec.Record) error
 	IncHit(r rec.Record) error // both lp hit and lp msisdn hit
+	IncPaid(r rec.Record) error
 }
 
 type collectorService struct {
 	conf     config.CollectorConfig
 	db       *sql.DB
-	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
+	adReport map[int64]*OperatorAgregate // map[campaign][operator]acceptor.Aggregate
 }
 
-type OperatorAgregate map[int64]acceptor.Aggregate
-type CampaignAggregate map[int64]OperatorAgregate
+type OperatorAgregate map[int64]adAggregate
 
-type LpHits struct {
+type adAggregate struct {
+	LpHits       *lpHits
+	LpMsisdnHits *lpMsisdnHits
+	MOTotal      *moTotal
+	MOSuccess    *moSuccess
+	MOUniq       *moUniq
+	Pixels       *pixels
+}
+
+type lpHits struct {
 	sync.RWMutex
 	count int64
 }
-type LpMsisdnHits struct {
+
+func (lh *lpHits) Inc() {
+	lh.Lock()
+	defer lh.Unlock()
+	lh.count++
+}
+
+type lpMsisdnHits struct {
 	sync.RWMutex
 	count int64
 }
-type MO struct {
+
+func (lmh *lpMsisdnHits) Inc() {
+	lmh.Lock()
+	defer lmh.Unlock()
+	lmh.count++
+}
+
+type moTotal struct {
 	sync.RWMutex
 	count int64
 }
-type MOSuccess struct {
+
+func (mo *moTotal) Inc() {
+	mo.Lock()
+	defer mo.Unlock()
+	mo.count++
+}
+
+type moSuccess struct {
+	sync.RWMutex
+	success int64
+}
+
+func (mo *moSuccess) Inc() {
+	mo.Lock()
+	defer mo.Unlock()
+	mo.success++
+}
+
+type moUniq struct {
+	sync.RWMutex
+	uniq map[string]struct{}
+}
+
+func (mo *moUniq) Track(msisdn string) {
+	mo.Lock()
+	defer mo.Unlock()
+	if mo.uniq == nil {
+		mo.uniq = make(map[string]struct{})
+	}
+	mo.uniq[msisdn] = struct{}{}
+}
+
+type pixels struct {
 	sync.RWMutex
 	count int64
 }
-type Pixels struct {
-	sync.RWMutex
-	count int64
+
+func (p *pixels) Inc() {
+	p.Lock()
+	defer p.Unlock()
+	p.count++
 }
 
 func Init(acceptorClient acceptor_client.ClientConfig) *Collector {
@@ -80,10 +124,103 @@ func Init(acceptorClient acceptor_client.ClientConfig) *Collector {
 }
 
 func (as *collectorService) send() {
+	begin := time.Now()
 	var data []acceptor.Aggregate
+	for campaignId, operatorAgregate := range as.adReport {
+		for operatorCode, intAggregate := range *operatorAgregate {
+			aa := acceptor.Aggregate{
+				ReportDate:   time.Now().Unix(),
+				Provider:     as.conf.Provider,
+				Campaign:     campaignId,
+				Operator:     operatorCode,
+				LPHits:       intAggregate.LpHits.count,
+				LPMsisdnHits: intAggregate.LpMsisdnHits.count,
+				Mo:           intAggregate.MOTotal.count,
+				MoSuccess:    intAggregate.MOSuccess.success,
+				MoUniq:       len(intAggregate.MOUniq.uniq),
+				Pixels:       intAggregate.Pixels.count,
+			}
+			data = append(data, aa)
+		}
+	}
+	log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
 	if err := acceptor_client.SendAggregatedData(data); err != nil {
 		log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
 	} else {
-		// clean
+		as.breathe()
 	}
+	m.SendDuration.Observe(time.Since(begin).Seconds())
+}
+
+func (as *collectorService) breathe() {
+	begin := time.Now()
+	for campaignId, operatorAgregate := range as.adReport {
+		for operatorCode, _ := range *operatorAgregate {
+			delete(as.adReport[campaignId], operatorCode)
+		}
+		delete(as.adReport, campaignId)
+	}
+	log.WithFields(log.Fields{"took": time.Since(begin)}).Info("breathe")
+	m.BreatheDuration.Observe(time.Since(begin).Seconds())
+}
+
+// map[campaign][operator]acceptor.Aggregate
+func (as *collectorService) check(r rec.Record) error {
+	if r.CampaignId == 0 {
+		m.ErrorCampaignIdEmpty.Inc()
+		return fmt.Errorf("CampaignIdEmpty: %d", r.SubscriptionId)
+
+	}
+	// operator code == 0
+	// unknown operator in access campaign
+	_, found := as.adReport[r.CampaignId]
+	if !found {
+		as.adReport = &OperatorAgregate{}
+	}
+	_, found = as.adReport[r.CampaignId][r.OperatorCode]
+	if !found {
+		as.adReport[r.CampaignId][r.OperatorCode] = &adAggregate{}
+	}
+	return nil
+}
+
+// both lp hit and lp msisdn hit
+func (as *collectorService) IncHit(r rec.Record) error {
+	if err := as.check(r); err != nil {
+		return err
+	}
+	as.adReport[r.CampaignId][r.OperatorCode].LpHits.Inc()
+	if r.Msisdn != "" {
+		as.adReport[r.CampaignId][r.OperatorCode].LpMsisdnHits.Inc()
+	}
+	return nil
+}
+
+// mo, mo uniq, mo success
+func (as *collectorService) IncMO(r rec.Record) error {
+	if err := as.check(r); err != nil {
+		return err
+	}
+	as.adReport[r.CampaignId][r.OperatorCode].MOTotal.Inc()
+	as.adReport[r.CampaignId][r.OperatorCode].MOUniq.Track(r.Msisdn)
+	if r.Paid {
+		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
+	}
+	return nil
+}
+func (as *collectorService) IncPaid(r rec.Record) error {
+	if err := as.check(r); err != nil {
+		return err
+	}
+	if r.Paid {
+		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
+	}
+	return nil
+}
+func (as *collectorService) IncPixel(r rec.Record) error {
+	if err := as.check(r); err != nil {
+		return err
+	}
+	as.adReport[r.CampaignId][r.OperatorCode].Pixels.Inc()
+	return nil
 }
