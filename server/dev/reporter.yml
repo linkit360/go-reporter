@@ -5,7 +5,7 @@ server:
   http_port: 50316
 
 collector:
-  provider: cheese
+  provider: mobilink
 
 db:
   conn_ttl: -1

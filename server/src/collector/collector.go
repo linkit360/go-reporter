@@ -2,6 +2,7 @@ package collector
 
 import (
 	"database/sql"
+	"encoding/json"
 	"fmt"
 	"sync"
 	"time"
@@ -127,7 +128,9 @@ func (p *pixels) Inc() {
 }
 
 func Init(appConfig config.AppConfig) Collector {
-	as := &collectorService{}
+	as := &collectorService{
+		conf: appConfig.Collector,
+	}
 	if err := acceptor_client.Init(appConfig.AcceptorClient); err != nil {
 		log.Fatal("cannot init acceptor client")
 	}
@@ -159,14 +162,21 @@ func (as *collectorService) send() {
 				MoUniq:       int64(len(intAggregate.MOUniq.uniq)),
 				Pixels:       intAggregate.Pixels.count,
 			}
+			if aa.LPHits == 0 && aa.LPMsisdnHits == 0 && aa.Mo == 0 &&
+				aa.MoSuccess == 0 && aa.RetrySuccess == 0 && aa.MoUniq == 0 && aa.Pixels == 0 {
+				continue
+			}
 			data = append(data, aa)
 		}
 	}
-	log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
-	if err := acceptor_client.SendAggregatedData(data); err != nil {
-		log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
-	} else {
+	if len(data) > 0 {
+		log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
+		if err := acceptor_client.SendAggregatedData(data); err != nil {
+			log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
+		}
 		as.breathe()
+		body, _ := json.Marshal(data)
+		log.WithFields(log.Fields{"data": string(body)}).Debug("sent")
 	}
 	m.SendDuration.Observe(time.Since(begin).Seconds())
 }
@@ -179,7 +189,7 @@ func (as *collectorService) breathe() {
 		}
 		delete(as.adReport, campaignId)
 	}
-	log.WithFields(log.Fields{"took": time.Since(begin)}).Info("breathe")
+	log.WithFields(log.Fields{"took": time.Since(begin)}).Debug("breathe")
 	m.BreatheDuration.Observe(time.Since(begin).Seconds())
 }
 
