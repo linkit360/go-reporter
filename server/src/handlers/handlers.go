@@ -16,7 +16,7 @@ func init() {
 
 func Init(appConfig config.AppConfig) {
 	m.Init(appConfig.AppName)
-	collector_iface.Init(appConfig)
+	collector = collector_iface.Init(appConfig)
 }
 
 type Collect struct{}

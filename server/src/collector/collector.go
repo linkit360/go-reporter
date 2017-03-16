@@ -155,6 +155,7 @@ func (as *collectorService) send() {
 				LPMsisdnHits: intAggregate.LpMsisdnHits.count,
 				Mo:           intAggregate.MOTotal.count,
 				MoSuccess:    intAggregate.MOSuccess.count,
+				RetrySuccess: intAggregate.RetrySuccess.count,
 				MoUniq:       int64(len(intAggregate.MOUniq.uniq)),
 				Pixels:       intAggregate.Pixels.count,
 			}
@@ -200,7 +201,15 @@ func (as *collectorService) check(r Collect) error {
 	}
 	_, found = as.adReport[r.CampaignId][r.OperatorCode]
 	if !found {
-		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{}
+		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{
+			LpHits:       &lpHits{},
+			LpMsisdnHits: &lpMsisdnHits{},
+			MOTotal:      &moTotal{},
+			MOSuccess:    &moSuccess{},
+			RetrySuccess: &retrySuccess{},
+			MOUniq:       &moUniq{},
+			Pixels:       &pixels{},
+		}
 	}
 	return nil
 }

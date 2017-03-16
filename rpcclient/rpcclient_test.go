@@ -12,7 +12,7 @@ import (
 func init() {
 	c := ClientConfig{
 		Enabled: true,
-		DSN:     "localhost:50313",
+		DSN:     "localhost:50315",
 		Timeout: 10,
 	}
 	if err := Init(c); err != nil {
@@ -21,7 +21,12 @@ func init() {
 }
 
 func Test(t *testing.T) {
-	r := collector.Collect{}
+	r := collector.Collect{
+		CampaignId:        1,
+		OperatorCode:      41001,
+		Msisdn:            "1234",
+		TransactionResult: "paid",
+	}
 	err := IncMO(r)
 	assert.NoError(t, err, "IncMO")
 
@@ -29,7 +34,7 @@ func Test(t *testing.T) {
 	assert.NoError(t, err, "IncPixel")
 
 	err = IncHit(r)
-	assert.Error(t, err, "IncHit")
+	assert.NoError(t, err, "IncHit")
 
 	err = IncPaid(r)
 	assert.NoError(t, err, "IncPaid")

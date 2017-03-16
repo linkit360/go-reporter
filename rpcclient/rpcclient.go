@@ -128,7 +128,7 @@ func call(funcName string, req interface{}, res interface{}) error {
 func IncMO(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
-		"Rec.IncMO",
+		"Collect.IncMO",
 		req,
 		&res,
 	)
@@ -138,7 +138,7 @@ func IncMO(req collector.Collect) error {
 func IncPixel(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
-		"Rec.IncPixel",
+		"Collect.IncPixel",
 		req,
 		&res,
 	)
@@ -147,7 +147,7 @@ func IncPixel(req collector.Collect) error {
 func IncHit(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
-		"Rec.IncHit",
+		"Collect.IncHit",
 		req,
 		&res,
 	)
@@ -156,7 +156,7 @@ func IncHit(req collector.Collect) error {
 func IncPaid(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
-		"Rec.IncPaid",
+		"Collect.IncPaid",
 		req,
 		&res,
 	)
