@@ -54,7 +54,7 @@ func runRPC(appConfig config.AppConfig) {
 
 	server := rpc.NewServer()
 	server.HandleHTTP(rpc.DefaultRPCPath, rpc.DefaultDebugPath)
-	server.RegisterName("Rec", &handlers.Rec{})
+	server.RegisterName("Collect", &handlers.Collect{})
 
 	for {
 		if conn, err := l.Accept(); err == nil {

@@ -9,9 +9,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
+	"github.com/vostrok/reporter/server/src/collector"
 	"github.com/vostrok/reporter/server/src/handlers"
 	m "github.com/vostrok/utils/metrics"
-	"github.com/vostrok/utils/rec"
 )
 
 var cli *Client
@@ -21,6 +21,7 @@ type Client struct {
 	conf       ClientConfig
 	m          *Metrics
 }
+
 type ClientConfig struct {
 	Enabled bool   `yaml:"enabled"`
 	Timeout int    `default:"10" yaml:"timeout"`
@@ -94,6 +95,9 @@ func (c *Client) dial() error {
 }
 
 func call(funcName string, req interface{}, res interface{}) error {
+	if !cli.conf.Enabled {
+		return nil
+	}
 	begin := time.Now()
 	if cli.connection == nil {
 		cli.dial()
@@ -121,7 +125,7 @@ func call(funcName string, req interface{}, res interface{}) error {
 	return nil
 }
 
-func IncMO(req rec.Record) error {
+func IncMO(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
 		"Rec.IncMO",
@@ -130,7 +134,8 @@ func IncMO(req rec.Record) error {
 	)
 	return err
 }
-func IncPixel(req rec.Record) error {
+
+func IncPixel(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
 		"Rec.IncPixel",
@@ -139,7 +144,7 @@ func IncPixel(req rec.Record) error {
 	)
 	return err
 }
-func IncHit(req rec.Record) error {
+func IncHit(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
 		"Rec.IncHit",
@@ -148,7 +153,7 @@ func IncHit(req rec.Record) error {
 	)
 	return err
 }
-func IncPaid(req rec.Record) error {
+func IncPaid(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
 		"Rec.IncPaid",

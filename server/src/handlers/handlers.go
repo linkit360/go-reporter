@@ -6,7 +6,6 @@ import (
 	collector_iface "github.com/vostrok/reporter/server/src/collector"
 	"github.com/vostrok/reporter/server/src/config"
 	m "github.com/vostrok/reporter/server/src/metrics"
-	"github.com/vostrok/utils/rec"
 )
 
 var collector collector_iface.Collector
@@ -20,19 +19,19 @@ func Init(appConfig config.AppConfig) {
 	collector_iface.Init(appConfig)
 }
 
-type Rec struct{}
+type Collect struct{}
 
 type Response struct{}
 
-func (rpc *Rec) IncMO(req rec.Record, res *Response) error {
+func (rpc *Collect) IncMO(req collector_iface.Collect, res *Response) error {
 	return collector.IncMO(req)
 }
-func (rpc *Rec) IncPixel(req rec.Record, res *Response) error {
+func (rpc *Collect) IncPixel(req collector_iface.Collect, res *Response) error {
 	return collector.IncPixel(req)
 }
-func (rpc *Rec) IncHit(req rec.Record, res *Response) error {
+func (rpc *Collect) IncHit(req collector_iface.Collect, res *Response) error {
 	return collector.IncHit(req)
 }
-func (rpc *Rec) IncPaid(req rec.Record, res *Response) error {
+func (rpc *Collect) IncPaid(req collector_iface.Collect, res *Response) error {
 	return collector.IncPaid(req)
 }

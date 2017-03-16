@@ -4,10 +4,9 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-	//"github.com/stretchr/testify/assert"
-	//"github.com/vostrok/reporter/server/src/handlers"
+
 	"github.com/stretchr/testify/assert"
-	"github.com/vostrok/utils/rec"
+	"github.com/vostrok/reporter/server/src/collector"
 )
 
 func init() {
@@ -22,7 +21,7 @@ func init() {
 }
 
 func Test(t *testing.T) {
-	r := rec.Record{}
+	r := collector.Collect{}
 	err := IncMO(r)
 	assert.NoError(t, err, "IncMO")
 
@@ -30,7 +29,7 @@ func Test(t *testing.T) {
 	assert.NoError(t, err, "IncPixel")
 
 	err = IncHit(r)
-	assert.NoError(t, err, "IncHit")
+	assert.Error(t, err, "IncHit")
 
 	err = IncPaid(r)
 	assert.NoError(t, err, "IncPaid")

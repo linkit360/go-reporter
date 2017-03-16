@@ -12,20 +12,26 @@ import (
 	acceptor "github.com/vostrok/acceptor/server/src/base"
 	"github.com/vostrok/reporter/server/src/config"
 	m "github.com/vostrok/reporter/server/src/metrics"
-	rec "github.com/vostrok/utils/rec"
 )
 
 type Collector interface {
-	IncMO(r rec.Record) error // mo, mo uniq, mo success
-	IncPixel(r rec.Record) error
-	IncHit(r rec.Record) error // both lp hit and lp msisdn hit
-	IncPaid(r rec.Record) error
+	IncMO(r Collect) error // mo, mo uniq, mo success
+	IncPixel(r Collect) error
+	IncHit(r Collect) error // both lp hit and lp msisdn hit
+	IncPaid(r Collect) error
 }
 
 type collectorService struct {
 	conf     config.CollectorConfig
 	db       *sql.DB
 	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
+}
+
+type Collect struct {
+	CampaignId        int64  `json:"id_campaign"`
+	OperatorCode      int64  `json:"operator_code"`
+	Msisdn            string `json:"msisdn"`
+	TransactionResult string `json:"transaction_result"`
 }
 
 type OperatorAgregate map[int64]adAggregate
@@ -35,6 +41,7 @@ type adAggregate struct {
 	LpMsisdnHits *lpMsisdnHits
 	MOTotal      *moTotal
 	MOSuccess    *moSuccess
+	RetrySuccess *retrySuccess
 	MOUniq       *moUniq
 	Pixels       *pixels
 }
@@ -81,6 +88,17 @@ func (mo *moSuccess) Inc() {
 	mo.Lock()
 	defer mo.Unlock()
 	mo.count++
+}
+
+type retrySuccess struct {
+	sync.RWMutex
+	count int64
+}
+
+func (retry *retrySuccess) Inc() {
+	retry.Lock()
+	defer retry.Unlock()
+	retry.count++
 }
 
 type moUniq struct {
@@ -131,8 +149,8 @@ func (as *collectorService) send() {
 			aa := acceptor.Aggregate{
 				ReportDate:   time.Now().Unix(),
 				Provider:     as.conf.Provider,
-				Campaign:     campaignId,
-				Operator:     operatorCode,
+				CampaignId:   campaignId,
+				OperatorCode: operatorCode,
 				LPHits:       intAggregate.LpHits.count,
 				LPMsisdnHits: intAggregate.LpMsisdnHits.count,
 				Mo:           intAggregate.MOTotal.count,
@@ -165,10 +183,10 @@ func (as *collectorService) breathe() {
 }
 
 // map[campaign][operator]acceptor.Aggregate
-func (as *collectorService) check(r rec.Record) error {
+func (as *collectorService) check(r Collect) error {
 	if r.CampaignId == 0 {
 		m.ErrorCampaignIdEmpty.Inc()
-		return fmt.Errorf("CampaignIdEmpty: %d", r.SubscriptionId)
+		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 
 	}
 	// operator code == 0
@@ -188,7 +206,7 @@ func (as *collectorService) check(r rec.Record) error {
 }
 
 // both lp hit and lp msisdn hit
-func (as *collectorService) IncHit(r rec.Record) error {
+func (as *collectorService) IncHit(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
@@ -200,27 +218,28 @@ func (as *collectorService) IncHit(r rec.Record) error {
 }
 
 // mo, mo uniq, mo success
-func (as *collectorService) IncMO(r rec.Record) error {
+func (as *collectorService) IncMO(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
 	as.adReport[r.CampaignId][r.OperatorCode].MOTotal.Inc()
 	as.adReport[r.CampaignId][r.OperatorCode].MOUniq.Track(r.Msisdn)
-	if r.Paid {
-		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
-	}
 	return nil
 }
-func (as *collectorService) IncPaid(r rec.Record) error {
+func (as *collectorService) IncPaid(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
-	if r.Paid {
+	if r.TransactionResult == "paid" {
 		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
+	}
+	if r.TransactionResult == "retry_paid" {
+		as.adReport[r.CampaignId][r.OperatorCode].RetrySuccess.Inc()
 	}
 	return nil
 }
-func (as *collectorService) IncPixel(r rec.Record) error {
+
+func (as *collectorService) IncPixel(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
