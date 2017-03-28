@@ -9,8 +9,8 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	acceptor_client "github.com/vostrok/acceptor/rpcclient"
-	acceptor "github.com/vostrok/acceptor/server/src/base"
+	acceptor_client "github.com/linkit360/go-acceptor/rpcclient"
+	acceptor "github.com/linkit360/go-acceptor/server/src/base"
 	"github.com/vostrok/reporter/server/src/config"
 	m "github.com/vostrok/reporter/server/src/metrics"
 )
@@ -150,19 +150,20 @@ func (as *collectorService) send() {
 	for campaignId, operatorAgregate := range as.adReport {
 		for operatorCode, intAggregate := range operatorAgregate {
 			aa := acceptor.Aggregate{
-				ReportDate:   time.Now().Unix(),
-				Provider:     as.conf.Provider,
+				ReportAt:     time.Now().Unix(),
+				ProviderName: as.conf.Provider,
 				CampaignId:   campaignId,
 				OperatorCode: operatorCode,
-				LPHits:       intAggregate.LpHits.count,
-				LPMsisdnHits: intAggregate.LpMsisdnHits.count,
+				LpHits:       intAggregate.LpHits.count,
+				LpMsisdnHits: intAggregate.LpMsisdnHits.count,
 				Mo:           intAggregate.MOTotal.count,
 				MoSuccess:    intAggregate.MOSuccess.count,
 				RetrySuccess: intAggregate.RetrySuccess.count,
 				MoUniq:       int64(len(intAggregate.MOUniq.uniq)),
 				Pixels:       intAggregate.Pixels.count,
 			}
-			if aa.LPHits == 0 && aa.LPMsisdnHits == 0 && aa.Mo == 0 &&
+
+			if aa.LpHits == 0 && aa.LpMsisdnHits == 0 && aa.Mo == 0 &&
 				aa.MoSuccess == 0 && aa.RetrySuccess == 0 && aa.MoUniq == 0 && aa.Pixels == 0 {
 				continue
 			}

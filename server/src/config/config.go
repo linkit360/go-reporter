@@ -9,7 +9,7 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/jinzhu/configor"
 
-	"github.com/vostrok/acceptor/rpcclient"
+	"github.com/linkit360/go-acceptor/rpcclient"
 	"github.com/vostrok/utils/db"
 )
 

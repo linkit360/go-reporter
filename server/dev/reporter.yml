@@ -5,7 +5,7 @@ server:
   http_port: 50316
 
 collector:
-  provider: mobilink
+  provider: cheese
 
 db:
   conn_ttl: -1
@@ -21,5 +21,5 @@ db:
   table_prefix: xmp_
 
 acceptor_client:
-  dsn: :50313
+  dsn: 52.220.50.252:10000
   timeout: 10

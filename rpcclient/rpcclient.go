@@ -95,6 +95,9 @@ func (c *Client) dial() error {
 }
 
 func call(funcName string, req interface{}, res interface{}) error {
+	if cli == nil || cli.connection == nil {
+		return nil
+	}
 	if !cli.conf.Enabled {
 		return nil
 	}
@@ -108,7 +111,7 @@ func call(funcName string, req interface{}, res interface{}) error {
 			log.WithFields(log.Fields{
 				"func":  funcName,
 				"error": err.Error(),
-			}).Fatal("call")
+			}).Error("call")
 		}
 		log.WithFields(log.Fields{
 			"func":  funcName,
