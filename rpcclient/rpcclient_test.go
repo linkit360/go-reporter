@@ -4,9 +4,9 @@ import (
 	"testing"
 
 	log "github.com/Sirupsen/logrus"
-
 	"github.com/stretchr/testify/assert"
-	"github.com/vostrok/reporter/server/src/collector"
+
+	"github.com/linkit360/go-reporter/server/src/collector"
 )
 
 func init() {

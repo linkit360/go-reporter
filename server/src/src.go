@@ -11,10 +11,10 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 
-	//"github.com/vostrok/reporter/rpcclient"
-	"github.com/vostrok/reporter/server/src/config"
-	"github.com/vostrok/reporter/server/src/handlers"
-	m "github.com/vostrok/utils/metrics"
+	//"github.com/linkit360/go-reporter/rpcclient"
+	"github.com/linkit360/go-reporter/server/src/config"
+	"github.com/linkit360/go-reporter/server/src/handlers"
+	m "github.com/linkit360/go-utils/metrics"
 )
 
 var appConfig config.AppConfig

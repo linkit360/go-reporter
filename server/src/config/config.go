@@ -9,8 +9,8 @@ import (
 	log "github.com/Sirupsen/logrus"
 	"github.com/jinzhu/configor"
 
-	"github.com/linkit360/go-acceptor/rpcclient"
-	"github.com/vostrok/utils/db"
+	"github.com/linkit360/go-acceptor-client"
+	"github.com/linkit360/go-utils/db"
 )
 
 type ServerConfig struct {

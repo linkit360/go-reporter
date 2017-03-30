@@ -9,10 +9,10 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	acceptor_client "github.com/linkit360/go-acceptor/rpcclient"
-	acceptor "github.com/linkit360/go-acceptor/server/src/base"
-	"github.com/vostrok/reporter/server/src/config"
-	m "github.com/vostrok/reporter/server/src/metrics"
+	acceptor_client "github.com/linkit360/go-acceptor-client"
+	acceptor "github.com/linkit360/go-acceptor-structs"
+	"github.com/linkit360/go-reporter/server/src/config"
+	m "github.com/linkit360/go-reporter/server/src/metrics"
 )
 
 type Collector interface {
@@ -132,7 +132,7 @@ func Init(appConfig config.AppConfig) Collector {
 		conf: appConfig.Collector,
 	}
 	if err := acceptor_client.Init(appConfig.AcceptorClient); err != nil {
-		log.Fatal("cannot init acceptor client")
+		log.Error("cannot init acceptor client")
 	}
 	as.adReport = make(map[int64]OperatorAgregate)
 	go func() {

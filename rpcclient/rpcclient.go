@@ -9,9 +9,9 @@ import (
 
 	log "github.com/Sirupsen/logrus"
 
-	"github.com/vostrok/reporter/server/src/collector"
-	"github.com/vostrok/reporter/server/src/handlers"
-	m "github.com/vostrok/utils/metrics"
+	"github.com/linkit360/go-reporter/server/src/collector"
+	"github.com/linkit360/go-reporter/server/src/handlers"
+	m "github.com/linkit360/go-utils/metrics"
 )
 
 var cli *Client

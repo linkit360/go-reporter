@@ -1,7 +1,7 @@
 package main
 
 import (
-	reporter_server "github.com/vostrok/reporter/server/src"
+	reporter_server "github.com/linkit360/go-reporter/server/src"
 )
 
 func main() {

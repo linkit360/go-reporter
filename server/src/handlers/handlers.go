@@ -3,9 +3,9 @@ package handlers
 import (
 	log "github.com/Sirupsen/logrus"
 
-	collector_iface "github.com/vostrok/reporter/server/src/collector"
-	"github.com/vostrok/reporter/server/src/config"
-	m "github.com/vostrok/reporter/server/src/metrics"
+	collector_iface "github.com/linkit360/go-reporter/server/src/collector"
+	"github.com/linkit360/go-reporter/server/src/config"
+	m "github.com/linkit360/go-reporter/server/src/metrics"
 )
 
 var collector collector_iface.Collector
