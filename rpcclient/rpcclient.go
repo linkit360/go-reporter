@@ -58,6 +58,9 @@ func Init(clientConf ClientConfig) error {
 		conf: clientConf,
 		m:    initMetrics(),
 	}
+	if !cli.conf.Enabled {
+		return nil
+	}
 	if err = cli.dial(); err != nil {
 		err = fmt.Errorf("cli.dial: %s", err.Error())
 		log.WithField("error", err.Error()).Error("reporter rpc client unavialable")
