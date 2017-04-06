@@ -173,11 +173,7 @@ func (as *collectorService) send() {
 	if len(data) > 0 {
 		log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
 		if err := acceptor_client.SendAggregatedData(data); err != nil {
-			if err == acceptor_client.ERR_DISABLED {
-				log.Debug("data sending disabled")
-			} else {
-				log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
-			}
+			log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
 		} else {
 			body, _ := json.Marshal(data)
 			log.WithFields(log.Fields{"data": string(body)}).Debug("sent")

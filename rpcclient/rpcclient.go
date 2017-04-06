@@ -50,9 +50,6 @@ func Init(clientConf ClientConfig) error {
 	if !clientConf.Enabled {
 		return nil
 	}
-	if cli != nil {
-		return nil
-	}
 	var err error
 	cli = &Client{
 		conf: clientConf,
@@ -77,7 +74,10 @@ func (c *Client) dial() error {
 	}
 	if c.connection != nil {
 	}
-
+	if c.connection != nil {
+		c.connection.Close()
+		c.connection = nil
+	}
 	conn, err := net.DialTimeout(
 		"tcp",
 		c.conf.DSN,
@@ -98,9 +98,6 @@ func (c *Client) dial() error {
 }
 
 func call(funcName string, req interface{}, res interface{}) error {
-	if cli == nil || cli.connection == nil {
-		return nil
-	}
 	if !cli.conf.Enabled {
 		return nil
 	}
@@ -114,8 +111,9 @@ func call(funcName string, req interface{}, res interface{}) error {
 			log.WithFields(log.Fields{
 				"func":  funcName,
 				"error": err.Error(),
-			}).Error("call")
+			}).Fatal("call")
 		}
+
 		log.WithFields(log.Fields{
 			"func":  funcName,
 			"error": err.Error(),
