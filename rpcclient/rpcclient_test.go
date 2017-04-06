@@ -11,7 +11,6 @@ import (
 
 func init() {
 	c := ClientConfig{
-		Enabled: true,
 		DSN:     "localhost:50315",
 		Timeout: 10,
 	}

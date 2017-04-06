@@ -23,7 +23,6 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	Enabled bool   `yaml:"enabled"`
 	Timeout int    `default:"10" yaml:"timeout"`
 	DSN     string `default:":50307" yaml:"dsn"`
 }
@@ -47,16 +46,10 @@ func initMetrics() *Metrics {
 	return metrics
 }
 func Init(clientConf ClientConfig) error {
-	if !clientConf.Enabled {
-		return nil
-	}
 	var err error
 	cli = &Client{
 		conf: clientConf,
 		m:    initMetrics(),
-	}
-	if !cli.conf.Enabled {
-		return nil
 	}
 	if err = cli.dial(); err != nil {
 		err = fmt.Errorf("cli.dial: %s", err.Error())
@@ -69,11 +62,6 @@ func Init(clientConf ClientConfig) error {
 }
 
 func (c *Client) dial() error {
-	if !c.conf.Enabled {
-		return nil
-	}
-	if c.connection != nil {
-	}
 	if c.connection != nil {
 		c.connection.Close()
 		c.connection = nil
@@ -98,16 +86,26 @@ func (c *Client) dial() error {
 }
 
 func call(funcName string, req interface{}, res interface{}) error {
-	if !cli.conf.Enabled {
-		return nil
-	}
 	begin := time.Now()
-	if cli.connection == nil {
-		cli.dial()
-	}
+
+	retryCount := 0
+retry:
 	if err := cli.connection.Call(funcName, req, &res); err != nil {
 		cli.m.RPCConnectError.Inc()
+
 		if err == rpc.ErrShutdown {
+
+			if retryCount < 2 {
+				retryCount = retryCount + 1
+				cli.connection.Close()
+				cli.dial()
+				log.WithFields(log.Fields{
+					"retryCount": retryCount,
+					"error":      err.Error(),
+				}).Debug("retrying..")
+				goto retry
+			}
+
 			log.WithFields(log.Fields{
 				"func":  funcName,
 				"error": err.Error(),
