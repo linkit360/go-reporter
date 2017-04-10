@@ -100,8 +100,8 @@ retry:
 				cli.connection.Close()
 				cli.dial()
 				log.WithFields(log.Fields{
-					"retryCount": retryCount,
-					"error":      err.Error(),
+					"retry": retryCount,
+					"error": err.Error(),
 				}).Debug("retrying..")
 				goto retry
 			}

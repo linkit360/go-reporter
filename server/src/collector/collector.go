@@ -23,6 +23,7 @@ type Collector interface {
 }
 
 type collectorService struct {
+	sync.RWMutex
 	conf     config.CollectorConfig
 	db       *sql.DB
 	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
@@ -132,6 +133,7 @@ func Init(appConfig config.AppConfig) Collector {
 		conf: appConfig.Collector,
 	}
 	if err := acceptor_client.Init(appConfig.AcceptorClient); err != nil {
+		m.Errors.Inc()
 		log.Error("cannot init acceptor client")
 	}
 	as.adReport = make(map[int64]OperatorAgregate)
@@ -145,6 +147,8 @@ func Init(appConfig config.AppConfig) Collector {
 }
 
 func (as *collectorService) send() {
+	as.Lock()
+	defer as.Unlock()
 	begin := time.Now()
 	var data []acceptor.Aggregate
 	for campaignId, operatorAgregate := range as.adReport {
@@ -173,6 +177,7 @@ func (as *collectorService) send() {
 	if len(data) > 0 {
 		log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
 		if err := acceptor_client.SendAggregatedData(data); err != nil {
+			m.Errors.Inc()
 			log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
 		} else {
 			body, _ := json.Marshal(data)
@@ -198,6 +203,7 @@ func (as *collectorService) breathe() {
 // map[campaign][operator]acceptor.Aggregate
 func (as *collectorService) check(r Collect) error {
 	if r.CampaignId == 0 {
+		m.Errors.Inc()
 		m.ErrorCampaignIdEmpty.Inc()
 		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 

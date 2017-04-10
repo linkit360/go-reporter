@@ -21,5 +21,6 @@ db:
   table_prefix: xmp_
 
 acceptor_client:
-  dsn: 52.220.50.252:10000
+  enabled: true
+  dsn: 52.220.50.252:50318
   timeout: 10
