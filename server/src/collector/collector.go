@@ -27,6 +27,7 @@ type collectorService struct {
 	conf     config.CollectorConfig
 	db       *sql.DB
 	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
+
 }
 
 type Collect struct {
@@ -208,6 +209,8 @@ func (as *collectorService) check(r Collect) error {
 		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 
 	}
+	as.Lock()
+	defer as.Unlock()
 	// operator code == 0
 	// unknown operator in access campaign
 	if as.adReport == nil {
@@ -237,6 +240,8 @@ func (as *collectorService) IncHit(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
+	as.Lock()
+	defer as.Unlock()
 	as.adReport[r.CampaignId][r.OperatorCode].LpHits.Inc()
 	if r.Msisdn != "" {
 		as.adReport[r.CampaignId][r.OperatorCode].LpMsisdnHits.Inc()
@@ -249,6 +254,8 @@ func (as *collectorService) IncMO(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
+	as.Lock()
+	defer as.Unlock()
 	as.adReport[r.CampaignId][r.OperatorCode].MOTotal.Inc()
 	as.adReport[r.CampaignId][r.OperatorCode].MOUniq.Track(r.Msisdn)
 	return nil
@@ -257,6 +264,8 @@ func (as *collectorService) IncPaid(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
+	as.Lock()
+	defer as.Unlock()
 	if r.TransactionResult == "paid" {
 		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
 	}
@@ -270,6 +279,8 @@ func (as *collectorService) IncPixel(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
+	as.Lock()
+	defer as.Unlock()
 	as.adReport[r.CampaignId][r.OperatorCode].Pixels.Inc()
 	return nil
 }
