@@ -31,10 +31,11 @@ type collectorService struct {
 }
 
 type Collect struct {
-	CampaignId        int64  `json:"id_campaign"`
-	OperatorCode      int64  `json:"operator_code"`
-	Msisdn            string `json:"msisdn"`
-	TransactionResult string `json:"transaction_result"`
+	CampaignId        int64  `json:"id_campaign,omitempty"`
+	OperatorCode      int64  `json:"operator_code,omitempty"`
+	Msisdn            string `json:"msisdn,omitempty"`
+	TransactionResult string `json:"transaction_result,omitempty"`
+	AttemptsCount     int    `json:"attempts_count,omitempty"`
 }
 
 type OperatorAgregate map[int64]adAggregate
@@ -269,7 +270,7 @@ func (as *collectorService) IncPaid(r Collect) error {
 	if r.TransactionResult == "paid" {
 		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
 	}
-	if r.TransactionResult == "retry_paid" {
+	if r.TransactionResult == "retry_paid" || r.AttemptsCount > 0 {
 		as.adReport[r.CampaignId][r.OperatorCode].RetrySuccess.Inc()
 	}
 	return nil
