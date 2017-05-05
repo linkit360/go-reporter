@@ -153,6 +153,7 @@ func IncHit(req collector.Collect) error {
 	return err
 }
 func IncPaid(req collector.Collect) error {
+
 	var res handlers.Response
 	err := call(
 		"Collect.IncPaid",

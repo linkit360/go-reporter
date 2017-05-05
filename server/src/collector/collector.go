@@ -270,9 +270,11 @@ func (as *collectorService) IncPaid(r Collect) error {
 	if r.TransactionResult == "paid" {
 		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
 	}
-	if r.TransactionResult == "retry_paid" || r.AttemptsCount > 0 {
+
+	if r.TransactionResult == "retry_paid" || (r.AttemptsCount > 0 && r.TransactionResult == "paid") {
 		as.adReport[r.CampaignId][r.OperatorCode].RetrySuccess.Inc()
 	}
+
 	return nil
 }
 
