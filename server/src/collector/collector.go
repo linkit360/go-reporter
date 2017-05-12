@@ -73,18 +73,18 @@ func (a *amounter) Add(amount float64) {
 }
 
 func (a *adAggregate) IsEmpty() bool {
-	return a.LpHits == 0 &&
-		a.LpMsisdnHits == 0 &&
-		a.MoTotal == 0 &&
-		a.MoChargeSuccess == 0 &&
-		a.MoChargeSum == 0 &&
-		a.MoChargeFailed == 0 &&
-		a.MoRejected == 0 &&
-		a.RenewalTotal == 0 &&
-		a.RenewalChargeSuccess == 0 &&
-		a.RenewalChargeSum == 0 &&
-		a.RenewalFailed == 0 &&
-		a.Pixels == 0
+	return a.LpHits.count == 0 &&
+		a.LpMsisdnHits.count == 0 &&
+		a.MoTotal.count == 0 &&
+		a.MoChargeSuccess.count == 0 &&
+		a.MoChargeSum.amount == 0 &&
+		a.MoChargeFailed.count == 0 &&
+		a.MoRejected.count == 0 &&
+		a.RenewalTotal.count == 0 &&
+		a.RenewalChargeSuccess.count == 0 &&
+		a.RenewalChargeSum.amount == 0 &&
+		a.RenewalFailed.count == 0 &&
+		a.Pixels.count == 0
 }
 
 func Init(appConfig config.AppConfig) Collector {
@@ -234,7 +234,7 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		if r.TransactionResult == "failed" {
 			as.adReport[r.CampaignId][r.OperatorCode].MoChargeFailed.Inc()
 		}
-		return
+		return nil
 	}
 
 	as.adReport[r.CampaignId][r.OperatorCode].RenewalTotal.Inc()

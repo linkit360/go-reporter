@@ -26,10 +26,7 @@ func Test(t *testing.T) {
 		Msisdn:            "1234",
 		TransactionResult: "paid",
 	}
-	err := IncMO(r)
-	assert.NoError(t, err, "IncMO")
-
-	err = IncPixel(r)
+	err := IncPixel(r)
 	assert.NoError(t, err, "IncPixel")
 
 	err = IncHit(r)
