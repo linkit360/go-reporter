@@ -67,7 +67,7 @@ func (c *counter) Add(amount int) {
 	c.count = c.count + int64(amount)
 }
 
-func (a *adAggregate) Sum() bool {
+func (a *adAggregate) Sum() int64 {
 	return a.LpHits.count +
 		a.LpMsisdnHits.count +
 		a.MoTotal.count +
