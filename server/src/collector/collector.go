@@ -13,13 +13,22 @@ import (
 	acceptor "github.com/linkit360/go-acceptor-structs"
 	"github.com/linkit360/go-reporter/server/src/config"
 	m "github.com/linkit360/go-reporter/server/src/metrics"
+	"strings"
 )
 
 type Collector interface {
-	IncMO(r Collect) error // mo, mo uniq, mo success
 	IncPixel(r Collect) error
-	IncHit(r Collect) error // both lp hit and lp msisdn hit
-	IncPaid(r Collect) error
+	IncHit(r Collect) error
+	IncTransaction(r Collect) error
+}
+
+type Collect struct {
+	CampaignId        int64   `json:"id_campaign,omitempty"`
+	OperatorCode      int64   `json:"operator_code,omitempty"`
+	Msisdn            string  `json:"msisdn,omitempty"`
+	TransactionResult string  `json:"transaction_result,omitempty"`
+	Price             float64 `json:"price,omitempty"`
+	AttemptsCount     int     `json:"attempts_count,omitempty"`
 }
 
 type collectorService struct {
@@ -30,104 +39,52 @@ type collectorService struct {
 
 }
 
-type Collect struct {
-	CampaignId        int64  `json:"id_campaign,omitempty"`
-	OperatorCode      int64  `json:"operator_code,omitempty"`
-	Msisdn            string `json:"msisdn,omitempty"`
-	TransactionResult string `json:"transaction_result,omitempty"`
-	AttemptsCount     int    `json:"attempts_count,omitempty"`
-}
-
 type OperatorAgregate map[int64]adAggregate
 
 type adAggregate struct {
-	LpHits       *lpHits
-	LpMsisdnHits *lpMsisdnHits
-	MOTotal      *moTotal
-	MOSuccess    *moSuccess
-	RetrySuccess *retrySuccess
-	MOUniq       *moUniq
-	Pixels       *pixels
+	LpHits               *counter  `json:"lp_hits,omitempty"`
+	LpMsisdnHits         *counter  `json:"lp_msisdn_hits,omitempty"`
+	MoTotal              *counter  `json:"mo,omitempty"`
+	MoChargeSuccess      *counter  `json:"mo_charge_success,omitempty"`
+	MoChargeSum          *amounter `json:"mo_charge_sum,omitempty"`
+	MoChargeFailed       *counter  `json:"mo_charge_failed,omitempty"`
+	MoRejected           *counter  `json:"mo_rejected,omitempty"`
+	RenewalTotal         *counter  `json:"renewal,omitempty"`
+	RenewalChargeSuccess *counter  `json:"renewal_charge_success,omitempty"`
+	RenewalChargeSum     *amounter `json:"renewal_charge_sum,omitempty"`
+	RenewalFailed        *counter  `json:"renewal_failed,omitempty"`
+	Pixels               *counter  `json:"pixels,omitempty"`
 }
 
-type lpHits struct {
-	sync.RWMutex
+type counter struct {
 	count int64
 }
 
-func (lh *lpHits) Inc() {
-	lh.Lock()
-	defer lh.Unlock()
-	lh.count++
+func (c *counter) Inc() {
+	c.count++
 }
 
-type lpMsisdnHits struct {
-	sync.RWMutex
-	count int64
+type amounter struct {
+	amount float64
 }
 
-func (lmh *lpMsisdnHits) Inc() {
-	lmh.Lock()
-	defer lmh.Unlock()
-	lmh.count++
+func (a *amounter) Add(amount float64) {
+	a.amount = a.amount + amount
 }
 
-type moTotal struct {
-	sync.RWMutex
-	count int64
-}
-
-func (mo *moTotal) Inc() {
-	mo.Lock()
-	defer mo.Unlock()
-	mo.count++
-}
-
-type moSuccess struct {
-	sync.RWMutex
-	count int64
-}
-
-func (mo *moSuccess) Inc() {
-	mo.Lock()
-	defer mo.Unlock()
-	mo.count++
-}
-
-type retrySuccess struct {
-	sync.RWMutex
-	count int64
-}
-
-func (retry *retrySuccess) Inc() {
-	retry.Lock()
-	defer retry.Unlock()
-	retry.count++
-}
-
-type moUniq struct {
-	sync.RWMutex
-	uniq map[string]struct{}
-}
-
-func (mo *moUniq) Track(msisdn string) {
-	mo.Lock()
-	defer mo.Unlock()
-	if mo.uniq == nil {
-		mo.uniq = make(map[string]struct{})
-	}
-	mo.uniq[msisdn] = struct{}{}
-}
-
-type pixels struct {
-	sync.RWMutex
-	count int64
-}
-
-func (p *pixels) Inc() {
-	p.Lock()
-	defer p.Unlock()
-	p.count++
+func (a *adAggregate) IsEmpty() bool {
+	return a.LpHits == 0 &&
+		a.LpMsisdnHits == 0 &&
+		a.MoTotal == 0 &&
+		a.MoChargeSuccess == 0 &&
+		a.MoChargeSum == 0 &&
+		a.MoChargeFailed == 0 &&
+		a.MoRejected == 0 &&
+		a.RenewalTotal == 0 &&
+		a.RenewalChargeSuccess == 0 &&
+		a.RenewalChargeSum == 0 &&
+		a.RenewalFailed == 0 &&
+		a.Pixels == 0
 }
 
 func Init(appConfig config.AppConfig) Collector {
@@ -154,24 +111,27 @@ func (as *collectorService) send() {
 	begin := time.Now()
 	var data []acceptor.Aggregate
 	for campaignId, operatorAgregate := range as.adReport {
-		for operatorCode, intAggregate := range operatorAgregate {
-			aa := acceptor.Aggregate{
-				ReportAt:     time.Now().Unix(),
-				ProviderName: as.conf.Provider,
-				CampaignId:   campaignId,
-				OperatorCode: operatorCode,
-				LpHits:       intAggregate.LpHits.count,
-				LpMsisdnHits: intAggregate.LpMsisdnHits.count,
-				Mo:           intAggregate.MOTotal.count,
-				MoSuccess:    intAggregate.MOSuccess.count,
-				RetrySuccess: intAggregate.RetrySuccess.count,
-				MoUniq:       int64(len(intAggregate.MOUniq.uniq)),
-				Pixels:       intAggregate.Pixels.count,
-			}
-
-			if aa.LpHits == 0 && aa.LpMsisdnHits == 0 && aa.Mo == 0 &&
-				aa.MoSuccess == 0 && aa.RetrySuccess == 0 && aa.MoUniq == 0 && aa.Pixels == 0 {
+		for operatorCode, coa := range operatorAgregate {
+			if coa.IsEmpty() {
 				continue
+			}
+			aa := acceptor.Aggregate{
+				ReportAt:             time.Now().Unix(),
+				ProviderName:         as.conf.Provider,
+				CampaignId:           campaignId,
+				OperatorCode:         operatorCode,
+				LpHits:               coa.LpHits.count,
+				LpMsisdnHits:         coa.LpMsisdnHits.count,
+				MoTotal:              coa.MoTotal.count,
+				MoChargeSuccess:      coa.MoChargeSuccess.count,
+				MoChargeSum:          coa.MoChargeSum.amount,
+				MoChargeFailed:       coa.MoChargeFailed.count,
+				MoRejected:           coa.MoRejected.count,
+				RenewalTotal:         coa.RenewalTotal.count,
+				RenewalChargeSuccess: coa.RenewalChargeSuccess.count,
+				RenewalChargeSum:     coa.RenewalChargeSum.amount,
+				RenewalFailed:        coa.RenewalFailed.count,
+				Pixels:               coa.Pixels.count,
 			}
 			data = append(data, aa)
 		}
@@ -224,13 +184,18 @@ func (as *collectorService) check(r Collect) error {
 	_, found = as.adReport[r.CampaignId][r.OperatorCode]
 	if !found {
 		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{
-			LpHits:       &lpHits{},
-			LpMsisdnHits: &lpMsisdnHits{},
-			MOTotal:      &moTotal{},
-			MOSuccess:    &moSuccess{},
-			RetrySuccess: &retrySuccess{},
-			MOUniq:       &moUniq{},
-			Pixels:       &pixels{},
+			LpHits:               &counter{},
+			LpMsisdnHits:         &counter{},
+			MoTotal:              &counter{},
+			MoChargeSuccess:      &counter{},
+			MoChargeSum:          &amounter{},
+			MoChargeFailed:       &counter{},
+			MoRejected:           &counter{},
+			RenewalTotal:         &counter{},
+			RenewalChargeSuccess: &counter{},
+			RenewalChargeSum:     &amounter{},
+			RenewalFailed:        &counter{},
+			Pixels:               &counter{},
 		}
 	}
 	return nil
@@ -250,31 +215,38 @@ func (as *collectorService) IncHit(r Collect) error {
 	return nil
 }
 
-// mo, mo uniq, mo success
-func (as *collectorService) IncMO(r Collect) error {
+func (as *collectorService) IncTransaction(r Collect) error {
 	if err := as.check(r); err != nil {
 		return err
 	}
 	as.Lock()
 	defer as.Unlock()
-	as.adReport[r.CampaignId][r.OperatorCode].MOTotal.Inc()
-	as.adReport[r.CampaignId][r.OperatorCode].MOUniq.Track(r.Msisdn)
-	return nil
-}
-func (as *collectorService) IncPaid(r Collect) error {
-	if err := as.check(r); err != nil {
-		return err
-	}
-	as.Lock()
-	defer as.Unlock()
-	if r.TransactionResult == "paid" {
-		as.adReport[r.CampaignId][r.OperatorCode].MOSuccess.Inc()
+
+	if r.AttemptsCount == 0 {
+		as.adReport[r.CampaignId][r.OperatorCode].MoTotal.Inc()
+		if r.TransactionResult == "paid" {
+			as.adReport[r.CampaignId][r.OperatorCode].MoChargeSuccess.Inc()
+			as.adReport[r.CampaignId][r.OperatorCode].MoChargeSum.Add(r.Price)
+		}
+		if r.TransactionResult == "rejected" {
+			as.adReport[r.CampaignId][r.OperatorCode].MoRejected.Inc()
+		}
+		if r.TransactionResult == "failed" {
+			as.adReport[r.CampaignId][r.OperatorCode].MoChargeFailed.Inc()
+		}
+		return
 	}
 
-	if r.TransactionResult == "retry_paid" || (r.AttemptsCount > 0 && r.TransactionResult == "paid") {
-		as.adReport[r.CampaignId][r.OperatorCode].RetrySuccess.Inc()
+	as.adReport[r.CampaignId][r.OperatorCode].RenewalTotal.Inc()
+
+	if strings.Contains(r.TransactionResult, "paid") {
+		as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSuccess.Inc()
+		as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSum.Add(r.Price)
 	}
 
+	if strings.Contains(r.TransactionResult, "failed") {
+		as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
+	}
 	return nil
 }
 

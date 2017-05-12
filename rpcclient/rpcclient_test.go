@@ -35,6 +35,6 @@ func Test(t *testing.T) {
 	err = IncHit(r)
 	assert.NoError(t, err, "IncHit")
 
-	err = IncPaid(r)
+	err = IncTransaction(r)
 	assert.NoError(t, err, "IncPaid")
 }

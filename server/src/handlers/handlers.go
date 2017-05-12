@@ -23,15 +23,12 @@ type Collect struct{}
 
 type Response struct{}
 
-func (rpc *Collect) IncMO(req collector_iface.Collect, res *Response) error {
-	return collector.IncMO(req)
-}
 func (rpc *Collect) IncPixel(req collector_iface.Collect, res *Response) error {
 	return collector.IncPixel(req)
 }
 func (rpc *Collect) IncHit(req collector_iface.Collect, res *Response) error {
 	return collector.IncHit(req)
 }
-func (rpc *Collect) IncPaid(req collector_iface.Collect, res *Response) error {
-	return collector.IncPaid(req)
+func (rpc *Collect) IncTransaction(req collector_iface.Collect, res *Response) error {
+	return collector.IncTransaction(req)
 }

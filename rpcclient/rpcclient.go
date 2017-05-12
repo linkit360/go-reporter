@@ -124,16 +124,6 @@ retry:
 	return nil
 }
 
-func IncMO(req collector.Collect) error {
-	var res handlers.Response
-	err := call(
-		"Collect.IncMO",
-		req,
-		&res,
-	)
-	return err
-}
-
 func IncPixel(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
@@ -152,11 +142,11 @@ func IncHit(req collector.Collect) error {
 	)
 	return err
 }
-func IncPaid(req collector.Collect) error {
+func IncTransaction(req collector.Collect) error {
 
 	var res handlers.Response
 	err := call(
-		"Collect.IncPaid",
+		"Collect.IncTransaction",
 		req,
 		&res,
 	)

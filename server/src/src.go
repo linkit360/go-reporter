@@ -2,11 +2,9 @@ package src
 
 import (
 	"net"
-	"net/http"
 	"net/rpc"
 	"net/rpc/jsonrpc"
 	"runtime"
-	"time"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
@@ -36,7 +34,6 @@ func Run() {
 func runGin(appConfig config.AppConfig) {
 	r := gin.New()
 	m.AddHandler(r)
-	r.GET("/incmo", TestIncMO)
 
 	r.Run(":" + appConfig.Server.HttpPort)
 
@@ -63,18 +60,4 @@ func runRPC(appConfig config.AppConfig) {
 			log.WithField("error", err.Error()).Error("accept")
 		}
 	}
-}
-
-func TestIncMO(c *gin.Context) {
-	begin := time.Now()
-	//
-	//if err := rpcclient.Init(appConfig.Client); err != nil {
-	//	log.WithField("error", err.Error()).Fatal("cannot init client")
-	//}
-	//if err := rpcclient.IncMO(); err != nil {
-	//	log.WithField("error", err.Error()).Error("accept")
-	//	c.JSON(http.StatusInternalServerError, gin.H{"error": err.Error()})
-	//	return
-	//}
-	c.JSON(http.StatusOK, gin.H{"since": time.Since(begin)})
 }

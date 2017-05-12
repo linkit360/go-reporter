@@ -12,7 +12,8 @@ var (
 	Success m.Gauge
 	Errors  m.Gauge
 
-	ErrorCampaignIdEmpty m.Gauge
+	ErrorCampaignIdEmpty   m.Gauge
+	ErrorOperatorCodeEmpty m.Gauge
 
 	BreatheDuration prometheus.Summary
 	SendDuration    prometheus.Summary
@@ -23,6 +24,7 @@ func Init(appName string) {
 	Errors = m.NewGauge("", "", "errors", "errors")
 
 	ErrorCampaignIdEmpty = m.NewGauge("errors", "campaign_id", "empty", "errors")
+	ErrorOperatorCodeEmpty = m.NewGauge("errors", "operator_code", "empty", "errors")
 
 	BreatheDuration = m.NewSummary(appName+"_breathe_duration_seconds", "breathe duration seconds")
 	SendDuration = m.NewSummary(appName+"_send_duration_seconds", "send duration seconds")
@@ -31,6 +33,8 @@ func Init(appName string) {
 		for range time.Tick(time.Minute) {
 			Success.Update()
 			Errors.Update()
+			ErrorCampaignIdEmpty.Update()
+			ErrorOperatorCodeEmpty.Update()
 		}
 	}()
 }
