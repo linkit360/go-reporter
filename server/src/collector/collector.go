@@ -23,12 +23,12 @@ type Collector interface {
 }
 
 type Collect struct {
-	CampaignId        int64   `json:"id_campaign,omitempty"`
-	OperatorCode      int64   `json:"operator_code,omitempty"`
-	Msisdn            string  `json:"msisdn,omitempty"`
-	TransactionResult string  `json:"transaction_result,omitempty"`
-	Price             float64 `json:"price,omitempty"`
-	AttemptsCount     int     `json:"attempts_count,omitempty"`
+	CampaignId        int64  `json:"id_campaign,omitempty"`
+	OperatorCode      int64  `json:"operator_code,omitempty"`
+	Msisdn            string `json:"msisdn,omitempty"`
+	TransactionResult string `json:"transaction_result,omitempty"`
+	Price             int    `json:"price,omitempty"`
+	AttemptsCount     int    `json:"attempts_count,omitempty"`
 }
 
 type collectorService struct {
@@ -42,18 +42,18 @@ type collectorService struct {
 type OperatorAgregate map[int64]adAggregate
 
 type adAggregate struct {
-	LpHits               *counter  `json:"lp_hits,omitempty"`
-	LpMsisdnHits         *counter  `json:"lp_msisdn_hits,omitempty"`
-	MoTotal              *counter  `json:"mo,omitempty"`
-	MoChargeSuccess      *counter  `json:"mo_charge_success,omitempty"`
-	MoChargeSum          *amounter `json:"mo_charge_sum,omitempty"`
-	MoChargeFailed       *counter  `json:"mo_charge_failed,omitempty"`
-	MoRejected           *counter  `json:"mo_rejected,omitempty"`
-	RenewalTotal         *counter  `json:"renewal,omitempty"`
-	RenewalChargeSuccess *counter  `json:"renewal_charge_success,omitempty"`
-	RenewalChargeSum     *amounter `json:"renewal_charge_sum,omitempty"`
-	RenewalFailed        *counter  `json:"renewal_failed,omitempty"`
-	Pixels               *counter  `json:"pixels,omitempty"`
+	LpHits               *counter `json:"lp_hits,omitempty"`
+	LpMsisdnHits         *counter `json:"lp_msisdn_hits,omitempty"`
+	MoTotal              *counter `json:"mo,omitempty"`
+	MoChargeSuccess      *counter `json:"mo_charge_success,omitempty"`
+	MoChargeSum          *counter `json:"mo_charge_sum,omitempty"`
+	MoChargeFailed       *counter `json:"mo_charge_failed,omitempty"`
+	MoRejected           *counter `json:"mo_rejected,omitempty"`
+	RenewalTotal         *counter `json:"renewal,omitempty"`
+	RenewalChargeSuccess *counter `json:"renewal_charge_success,omitempty"`
+	RenewalChargeSum     *counter `json:"renewal_charge_sum,omitempty"`
+	RenewalFailed        *counter `json:"renewal_failed,omitempty"`
+	Pixels               *counter `json:"pixels,omitempty"`
 }
 
 type counter struct {
@@ -63,13 +63,8 @@ type counter struct {
 func (c *counter) Inc() {
 	c.count++
 }
-
-type amounter struct {
-	amount float64
-}
-
-func (a *amounter) Add(amount float64) {
-	a.amount = a.amount + amount
+func (c *counter) Add(amount int) {
+	c.count = c.count + int64(amount)
 }
 
 func (a *adAggregate) IsEmpty() bool {
@@ -77,12 +72,12 @@ func (a *adAggregate) IsEmpty() bool {
 		a.LpMsisdnHits.count == 0 &&
 		a.MoTotal.count == 0 &&
 		a.MoChargeSuccess.count == 0 &&
-		a.MoChargeSum.amount == 0 &&
+		a.MoChargeSum.count == 0 &&
 		a.MoChargeFailed.count == 0 &&
 		a.MoRejected.count == 0 &&
 		a.RenewalTotal.count == 0 &&
 		a.RenewalChargeSuccess.count == 0 &&
-		a.RenewalChargeSum.amount == 0 &&
+		a.RenewalChargeSum.count == 0 &&
 		a.RenewalFailed.count == 0 &&
 		a.Pixels.count == 0
 }
@@ -124,12 +119,12 @@ func (as *collectorService) send() {
 				LpMsisdnHits:         coa.LpMsisdnHits.count,
 				MoTotal:              coa.MoTotal.count,
 				MoChargeSuccess:      coa.MoChargeSuccess.count,
-				MoChargeSum:          coa.MoChargeSum.amount,
+				MoChargeSum:          coa.MoChargeSum.count,
 				MoChargeFailed:       coa.MoChargeFailed.count,
 				MoRejected:           coa.MoRejected.count,
 				RenewalTotal:         coa.RenewalTotal.count,
 				RenewalChargeSuccess: coa.RenewalChargeSuccess.count,
-				RenewalChargeSum:     coa.RenewalChargeSum.amount,
+				RenewalChargeSum:     coa.RenewalChargeSum.count,
 				RenewalFailed:        coa.RenewalFailed.count,
 				Pixels:               coa.Pixels.count,
 			}
@@ -188,12 +183,12 @@ func (as *collectorService) check(r Collect) error {
 			LpMsisdnHits:         &counter{},
 			MoTotal:              &counter{},
 			MoChargeSuccess:      &counter{},
-			MoChargeSum:          &amounter{},
+			MoChargeSum:          &counter{},
 			MoChargeFailed:       &counter{},
 			MoRejected:           &counter{},
 			RenewalTotal:         &counter{},
 			RenewalChargeSuccess: &counter{},
-			RenewalChargeSum:     &amounter{},
+			RenewalChargeSum:     &counter{},
 			RenewalFailed:        &counter{},
 			Pixels:               &counter{},
 		}
