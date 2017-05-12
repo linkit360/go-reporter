@@ -17,6 +17,7 @@ var (
 
 	BreatheDuration prometheus.Summary
 	SendDuration    prometheus.Summary
+	AggregateSum    prometheus.Summary
 )
 
 func Init(appName string) {
@@ -28,6 +29,7 @@ func Init(appName string) {
 
 	BreatheDuration = m.NewSummary(appName+"_breathe_duration_seconds", "breathe duration seconds")
 	SendDuration = m.NewSummary(appName+"_send_duration_seconds", "send duration seconds")
+	AggregateSum = m.NewSummary(appName+"_aggregatae_sum", "aggregate sum")
 
 	go func() {
 		for range time.Tick(time.Minute) {

@@ -67,19 +67,19 @@ func (c *counter) Add(amount int) {
 	c.count = c.count + int64(amount)
 }
 
-func (a *adAggregate) IsEmpty() bool {
-	return a.LpHits.count == 0 &&
-		a.LpMsisdnHits.count == 0 &&
-		a.MoTotal.count == 0 &&
-		a.MoChargeSuccess.count == 0 &&
-		a.MoChargeSum.count == 0 &&
-		a.MoChargeFailed.count == 0 &&
-		a.MoRejected.count == 0 &&
-		a.RenewalTotal.count == 0 &&
-		a.RenewalChargeSuccess.count == 0 &&
-		a.RenewalChargeSum.count == 0 &&
-		a.RenewalFailed.count == 0 &&
-		a.Pixels.count == 0
+func (a *adAggregate) Sum() bool {
+	return a.LpHits.count +
+		a.LpMsisdnHits.count +
+		a.MoTotal.count +
+		a.MoChargeSuccess.count +
+		a.MoChargeSum.count +
+		a.MoChargeFailed.count +
+		a.MoRejected.count +
+		a.RenewalTotal.count +
+		a.RenewalChargeSuccess.count +
+		a.RenewalChargeSum.count +
+		a.RenewalFailed.count +
+		a.Pixels.count
 }
 
 func Init(appConfig config.AppConfig) Collector {
@@ -105,11 +105,14 @@ func (as *collectorService) send() {
 	defer as.Unlock()
 	begin := time.Now()
 	var data []acceptor.Aggregate
+	aggregateSum := int64(.0)
 	for campaignId, operatorAgregate := range as.adReport {
 		for operatorCode, coa := range operatorAgregate {
-			if coa.IsEmpty() {
+			if coa.Sum() == 0 {
 				continue
 			}
+			aggregateSum = aggregateSum + coa.Sum()
+
 			aa := acceptor.Aggregate{
 				ReportAt:             time.Now().Unix(),
 				ProviderName:         as.conf.Provider,
@@ -143,6 +146,7 @@ func (as *collectorService) send() {
 		as.breathe()
 	}
 	m.SendDuration.Observe(time.Since(begin).Seconds())
+	m.AggregateSum.Observe(float64(aggregateSum))
 }
 
 func (as *collectorService) breathe() {
@@ -164,6 +168,10 @@ func (as *collectorService) check(r Collect) error {
 		m.ErrorCampaignIdEmpty.Inc()
 		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 
+	}
+	if r.OperatorCode == 0 {
+		m.Errors.Inc()
+		m.ErrorCampaignIdEmpty.Inc()
 	}
 	as.Lock()
 	defer as.Unlock()
