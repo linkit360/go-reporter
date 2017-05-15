@@ -160,6 +160,7 @@ func (as *collectorService) send() {
 	begin := time.Now()
 	var data []acceptor.Aggregate
 	aggregateSum := int64(.0)
+
 	for campaignId, operatorAgregate := range as.adReport {
 		for operatorCode, coa := range operatorAgregate {
 			if coa.Sum() == 0 {
@@ -189,8 +190,9 @@ func (as *collectorService) send() {
 			data = append(data, aa)
 		}
 	}
+	as.state.Archive = append(as.state.Archive, data...)
 
-	if len(data) > 0 {
+	if len(as.state.Archive) > 0 {
 		log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
 		resp, err := acceptor_client.SendAggregatedData(as.state.Archive)
 		if err != nil || !resp.Ok {
@@ -201,13 +203,13 @@ func (as *collectorService) send() {
 			if !resp.Ok {
 				log.WithFields(log.Fields{"reason": resp.Error}).Warn("haven't received the data")
 			}
-
-			as.state.Archive = append(as.state.Archive, data...)
-			if len(data) > 0 {
-				log.WithFields(log.Fields{"count": len(data)}).Debug("added data to the archive")
-			}
+			log.WithFields(log.Fields{"count": len(data)}).Debug("added data to the archive")
 		} else {
-			log.WithFields(log.Fields{"count": len(as.state.Archive)}).Debug("")
+			queueJson, _ := json.Marshal(as.state.Archive)
+			log.WithFields(log.Fields{
+				"count": len(as.state.Archive),
+				"data":  string(queueJson),
+			}).Debug("sent")
 			as.state.Archive = []acceptor.Aggregate{}
 		}
 		as.breathe()
