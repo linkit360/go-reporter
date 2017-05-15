@@ -4,6 +4,8 @@ import (
 	"database/sql"
 	"encoding/json"
 	"fmt"
+	"io/ioutil"
+	"strings"
 	"sync"
 	"time"
 
@@ -13,13 +15,14 @@ import (
 	acceptor "github.com/linkit360/go-acceptor-structs"
 	"github.com/linkit360/go-reporter/server/src/config"
 	m "github.com/linkit360/go-reporter/server/src/metrics"
-	"strings"
 )
 
 type Collector interface {
+	SaveState()
 	IncPixel(r Collect) error
 	IncHit(r Collect) error
 	IncTransaction(r Collect) error
+	IncOutflow(r Collect) error
 }
 
 type Collect struct {
@@ -34,12 +37,17 @@ type Collect struct {
 type collectorService struct {
 	sync.RWMutex
 	conf     config.CollectorConfig
+	state    CollectorState
 	db       *sql.DB
 	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
-
 }
 
 type OperatorAgregate map[int64]adAggregate
+
+type CollectorState struct {
+	LastSendTime time.Time            `json:"last_send_time"`
+	Archive      []acceptor.Aggregate `json:"archive"`
+}
 
 type adAggregate struct {
 	LpHits               *counter `json:"lp_hits,omitempty"`
@@ -49,6 +57,7 @@ type adAggregate struct {
 	MoChargeSum          *counter `json:"mo_charge_sum,omitempty"`
 	MoChargeFailed       *counter `json:"mo_charge_failed,omitempty"`
 	MoRejected           *counter `json:"mo_rejected,omitempty"`
+	Outflow              *counter `json:"outflow,omitempty"`
 	RenewalTotal         *counter `json:"renewal,omitempty"`
 	RenewalChargeSuccess *counter `json:"renewal_charge_success,omitempty"`
 	RenewalChargeSum     *counter `json:"renewal_charge_sum,omitempty"`
@@ -86,6 +95,10 @@ func Init(appConfig config.AppConfig) Collector {
 	as := &collectorService{
 		conf: appConfig.Collector,
 	}
+	if err := as.loadState(); err != nil {
+		log.WithField("error", err.Error()).Fatal("cannot load state")
+	}
+
 	if err := acceptor_client.Init(appConfig.AcceptorClient); err != nil {
 		m.Errors.Inc()
 		log.Error("cannot init acceptor client")
@@ -100,6 +113,47 @@ func Init(appConfig config.AppConfig) Collector {
 	return as
 }
 
+func (as *collectorService) SaveState() {
+	if err := as.saveState(); err != nil {
+		log.WithField("error", err.Error()).Fatal("cannot save state")
+	}
+}
+func (as *collectorService) saveState() error {
+	stateJson, err := json.Marshal(as.state)
+	if err != nil {
+		err = fmt.Errorf("json.Marshal: %s", err.Error())
+		return err
+	}
+
+	if err := ioutil.WriteFile(as.conf.StateConfigFilePath, stateJson, 0644); err != nil {
+		err = fmt.Errorf("ioutil.WriteFile: %s", err.Error())
+		return err
+	}
+	return nil
+}
+
+func (as *collectorService) loadState() error {
+	logCtx := log.WithField("action", "load collector state")
+	stateJson, err := ioutil.ReadFile(as.conf.StateConfigFilePath)
+	if err != nil {
+		err = fmt.Errorf("ioutil.ReadFile: %s", err.Error())
+		logCtx.WithField("path", as.conf.StateConfigFilePath).Error(err.Error())
+		return err
+	}
+	if err = json.Unmarshal(stateJson, &as.state); err != nil {
+		err = fmt.Errorf("json.Unmarshal: %s", err.Error())
+		logCtx.Error(err.Error())
+		return err
+	}
+	log.Debug("checking time")
+	if as.state.LastSendTime.IsZero() {
+		as.state.LastSendTime = time.Now().UTC()
+		logCtx.Warn("invalid time")
+	}
+	logCtx.Infof("%s, count: %s", as.state.LastSendTime.String(), len(as.state.Archive))
+	return nil
+}
+
 func (as *collectorService) send() {
 	as.Lock()
 	defer as.Unlock()
@@ -111,6 +165,7 @@ func (as *collectorService) send() {
 			if coa.Sum() == 0 {
 				continue
 			}
+
 			aggregateSum = aggregateSum + coa.Sum()
 
 			aa := acceptor.Aggregate{
@@ -134,14 +189,26 @@ func (as *collectorService) send() {
 			data = append(data, aa)
 		}
 	}
+
 	if len(data) > 0 {
 		log.WithFields(log.Fields{"took": time.Since(begin)}).Info("prepare")
-		if err := acceptor_client.SendAggregatedData(data); err != nil {
-			m.Errors.Inc()
-			log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
+		resp, err := acceptor_client.SendAggregatedData(as.state.Archive)
+		if err != nil || !resp.Ok {
+			if err != nil {
+				m.Errors.Inc()
+				log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
+			}
+			if !resp.Ok {
+				log.WithFields(log.Fields{"reason": resp.Error}).Warn("haven't received the data")
+			}
+
+			as.state.Archive = append(as.state.Archive, data...)
+			if len(data) > 0 {
+				log.WithFields(log.Fields{"count": len(data)}).Debug("added data to the archive")
+			}
 		} else {
-			body, _ := json.Marshal(data)
-			log.WithFields(log.Fields{"data": string(body)}).Debug("sent")
+			log.WithFields(log.Fields{"count": len(as.state.Archive)}).Debug("")
+			as.state.Archive = []acceptor.Aggregate{}
 		}
 		as.breathe()
 	}
@@ -249,6 +316,21 @@ func (as *collectorService) IncTransaction(r Collect) error {
 
 	if strings.Contains(r.TransactionResult, "failed") {
 		as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
+	}
+	return nil
+}
+
+func (as *collectorService) IncOutflow(r Collect) error {
+	if err := as.check(r); err != nil {
+		return err
+	}
+	as.Lock()
+	defer as.Unlock()
+
+	if strings.Contains(r.TransactionResult, "inactive") ||
+		strings.Contains(r.TransactionResult, "purge") ||
+		strings.Contains(r.TransactionResult, "canceled") {
+		as.adReport[r.CampaignId][r.OperatorCode].Outflow.Inc()
 	}
 	return nil
 }

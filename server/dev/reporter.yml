@@ -6,6 +6,7 @@ server:
 
 collector:
   provider: cheese
+  state_config_file_path: /home/centos/linkit/reporter.json
 
 db:
   conn_ttl: -1

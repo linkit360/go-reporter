@@ -9,7 +9,7 @@ run:
 	./server
 
 rm:
-	rm -v bin/reporter-linux-amd64; rm ~/linkit/reporter-linux-amd64;
+	rm -f bin/reporter-linux-amd64; rm -f ~/linkit/reporter-linux-amd64;
 
 build:
 	export GOOS=linux; export GOARCH=amd64; \

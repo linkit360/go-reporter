@@ -26,7 +26,8 @@ type AppConfig struct {
 }
 
 type CollectorConfig struct {
-	Provider string `yaml:"provider"`
+	Provider            string `yaml:"provider"`
+	StateConfigFilePath string `yaml:"state_config_file_path"`
 }
 
 func LoadConfig() AppConfig {

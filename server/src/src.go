@@ -4,12 +4,12 @@ import (
 	"net"
 	"net/rpc"
 	"net/rpc/jsonrpc"
+	"os"
 	"runtime"
 
 	log "github.com/Sirupsen/logrus"
 	"github.com/gin-gonic/gin"
 
-	//"github.com/linkit360/go-reporter/rpcclient"
 	"github.com/linkit360/go-reporter/server/src/config"
 	"github.com/linkit360/go-reporter/server/src/handlers"
 	m "github.com/linkit360/go-utils/metrics"
@@ -29,6 +29,11 @@ func Run() {
 	go runGin(appConfig)
 
 	runRPC(appConfig)
+}
+
+func OnExit() {
+	log.WithField("pid", os.Getpid()).Info("on exit")
+	handlers.OnExit()
 }
 
 func runGin(appConfig config.AppConfig) {

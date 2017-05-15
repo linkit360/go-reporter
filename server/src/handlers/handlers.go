@@ -19,6 +19,10 @@ func Init(appConfig config.AppConfig) {
 	collector = collector_iface.Init(appConfig)
 }
 
+func OnExit() {
+	collector.SaveState()
+}
+
 type Collect struct{}
 
 type Response struct{}
@@ -31,4 +35,7 @@ func (rpc *Collect) IncHit(req collector_iface.Collect, res *Response) error {
 }
 func (rpc *Collect) IncTransaction(req collector_iface.Collect, res *Response) error {
 	return collector.IncTransaction(req)
+}
+func (rpc *Collect) IncOutflow(req collector_iface.Collect, res *Response) error {
+	return collector.IncOutflow(req)
 }

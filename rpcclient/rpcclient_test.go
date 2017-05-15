@@ -34,4 +34,7 @@ func Test(t *testing.T) {
 
 	err = IncTransaction(r)
 	assert.NoError(t, err, "IncPaid")
+
+	err = IncOutflow(r)
+	assert.NoError(t, err, "IncOutflow")
 }

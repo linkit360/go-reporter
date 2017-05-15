@@ -152,3 +152,14 @@ func IncTransaction(req collector.Collect) error {
 	)
 	return err
 }
+
+func IncOutflow(req collector.Collect) error {
+
+	var res handlers.Response
+	err := call(
+		"Collect.IncOutflow",
+		req,
+		&res,
+	)
+	return err
+}
