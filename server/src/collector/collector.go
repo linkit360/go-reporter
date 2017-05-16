@@ -284,6 +284,7 @@ func (as *collectorService) IncHit(r Collect) error {
 	}
 	as.Lock()
 	defer as.Unlock()
+
 	as.adReport[r.CampaignId][r.OperatorCode].LpHits.Inc()
 	if r.Msisdn != "" {
 		as.adReport[r.CampaignId][r.OperatorCode].LpMsisdnHits.Inc()

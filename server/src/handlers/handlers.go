@@ -28,14 +28,21 @@ type Collect struct{}
 type Response struct{}
 
 func (rpc *Collect) IncPixel(req collector_iface.Collect, res *Response) error {
-	return collector.IncPixel(req)
+	collector.IncPixel(req)
+	return nil
 }
+
 func (rpc *Collect) IncHit(req collector_iface.Collect, res *Response) error {
-	return collector.IncHit(req)
+	collector.IncHit(req)
+	return nil
 }
+
 func (rpc *Collect) IncTransaction(req collector_iface.Collect, res *Response) error {
-	return collector.IncTransaction(req)
+	collector.IncTransaction(req)
+	return nil
 }
+
 func (rpc *Collect) IncOutflow(req collector_iface.Collect, res *Response) error {
-	return collector.IncOutflow(req)
+	collector.IncOutflow(req)
+	return nil
 }

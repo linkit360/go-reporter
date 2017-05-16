@@ -7,6 +7,7 @@ import (
 	"net"
 	"net/rpc"
 	"net/rpc/jsonrpc"
+	"os"
 	"time"
 
 	log "github.com/Sirupsen/logrus"
@@ -28,9 +29,17 @@ type Client struct {
 }
 
 type ClientConfig struct {
-	Timeout             int    `default:"10" yaml:"timeout"`
-	DSN                 string `default:":50307" yaml:"dsn"`
-	StateConfigFilePath string `yaml:"state_config_file_path"`
+	Timeout             int          `default:"10" yaml:"timeout"`
+	DSN                 string       `default:":50307" yaml:"dsn"`
+	StateConfigFilePath string       `yaml:"state_config_file_path"`
+	Channels            ChannelSizes `yaml:"channels"`
+}
+
+type ChannelSizes struct {
+	Hit         int `default:"1200" yaml:"hit"`
+	Transaction int `default:"1200" yaml:"transaction"`
+	Pixel       int `default:"1200" yaml:"pixel"`
+	Outflow     int `default:"1200" yaml:"outflow"`
 }
 
 type SavedState struct {
@@ -85,10 +94,10 @@ func Init(clientConf ClientConfig) error {
 		conf: clientConf,
 		m:    initMetrics(),
 		ch: &ReserveCh{
-			Pixel:       make(chan collector.Collect),
-			Hit:         make(chan collector.Collect),
-			Transaction: make(chan collector.Collect),
-			Outflow:     make(chan collector.Collect),
+			Pixel:       make(chan collector.Collect, clientConf.Channels.Pixel),
+			Hit:         make(chan collector.Collect, clientConf.Channels.Hit),
+			Transaction: make(chan collector.Collect, clientConf.Channels.Transaction),
+			Outflow:     make(chan collector.Collect, clientConf.Channels.Outflow),
 		},
 	}
 	if err = cli.dial(); err != nil {
@@ -157,6 +166,14 @@ func Init(clientConf ClientConfig) error {
 func SaveState() error {
 	cli.stopping = true
 	var state SavedState
+	log.WithFields(log.Fields{
+		"pid":         os.Getpid(),
+		"outflow":     len(cli.ch.Outflow),
+		"hit":         len(cli.ch.Hit),
+		"transaction": len(cli.ch.Transaction),
+		"pixel":       len(cli.ch.Pixel),
+	}).Debug("channels")
+
 	for req := range cli.ch.Outflow {
 		state.Outflow = append(state.Outflow, req)
 	}
@@ -178,7 +195,10 @@ func SaveState() error {
 		err = fmt.Errorf("ioutil.WriteFile: %s", err.Error())
 		return err
 	}
-	log.Info("reporter save state done")
+	log.WithFields(log.Fields{
+		"pid":   os.Getpid(),
+		"state": string(stateJson),
+	}).Info("reporter save state done")
 	return nil
 }
 
@@ -208,7 +228,10 @@ func loadState() error {
 	for _, req := range state.Pixel {
 		cli.ch.Pixel <- req
 	}
-	log.Info("reporter load state done")
+	log.WithFields(log.Fields{
+		"state": string(stateBytes),
+		"pid":   os.Getpid(),
+	}).Info("reporter load state done")
 	return nil
 }
 func (c *Client) dial() error {
@@ -291,6 +314,7 @@ func incPixel(req collector.Collect) error {
 func IncHit(req collector.Collect) {
 	cli.ch.Hit <- req
 }
+
 func incHit(req collector.Collect) error {
 	var res handlers.Response
 	err := call(
