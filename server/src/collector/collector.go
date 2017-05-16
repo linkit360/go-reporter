@@ -88,6 +88,7 @@ func (a *adAggregate) Sum() int64 {
 		a.RenewalChargeSuccess.count +
 		a.RenewalChargeSum.count +
 		a.RenewalFailed.count +
+		a.Outflow.count +
 		a.Pixels.count
 }
 
@@ -103,6 +104,7 @@ func Init(appConfig config.AppConfig) Collector {
 		m.Errors.Inc()
 		log.Error("cannot init acceptor client")
 	}
+
 	as.adReport = make(map[int64]OperatorAgregate)
 	go func() {
 		for range time.Tick(time.Second) {
@@ -181,6 +183,7 @@ func (as *collectorService) send() {
 				MoChargeSum:          coa.MoChargeSum.count,
 				MoChargeFailed:       coa.MoChargeFailed.count,
 				MoRejected:           coa.MoRejected.count,
+				Outflow:              coa.Outflow.count,
 				RenewalTotal:         coa.RenewalTotal.count,
 				RenewalChargeSuccess: coa.RenewalChargeSuccess.count,
 				RenewalChargeSum:     coa.RenewalChargeSum.count,
@@ -263,6 +266,7 @@ func (as *collectorService) check(r Collect) error {
 			MoChargeSum:          &counter{},
 			MoChargeFailed:       &counter{},
 			MoRejected:           &counter{},
+			Outflow:              &counter{},
 			RenewalTotal:         &counter{},
 			RenewalChargeSuccess: &counter{},
 			RenewalChargeSum:     &counter{},
@@ -329,9 +333,9 @@ func (as *collectorService) IncOutflow(r Collect) error {
 	as.Lock()
 	defer as.Unlock()
 
-	if strings.Contains(r.TransactionResult, "inactive") ||
+	if strings.Contains(r.TransactionResult, "inact") ||
 		strings.Contains(r.TransactionResult, "purge") ||
-		strings.Contains(r.TransactionResult, "canceled") {
+		strings.Contains(r.TransactionResult, "cancel") {
 		as.adReport[r.CampaignId][r.OperatorCode].Outflow.Inc()
 	}
 	return nil

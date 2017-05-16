@@ -26,15 +26,15 @@ func Test(t *testing.T) {
 		Msisdn:            "1234",
 		TransactionResult: "paid",
 	}
-	err := IncPixel(r)
+	err := incPixel(r)
 	assert.NoError(t, err, "IncPixel")
 
-	err = IncHit(r)
+	err = incHit(r)
 	assert.NoError(t, err, "IncHit")
 
-	err = IncTransaction(r)
+	err = incTransaction(r)
 	assert.NoError(t, err, "IncPaid")
 
-	err = IncOutflow(r)
+	err = incOutflow(r)
 	assert.NoError(t, err, "IncOutflow")
 }
