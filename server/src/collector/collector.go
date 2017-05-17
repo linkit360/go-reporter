@@ -50,19 +50,27 @@ type CollectorState struct {
 }
 
 type adAggregate struct {
-	LpHits               *counter `json:"lp_hits,omitempty"`
-	LpMsisdnHits         *counter `json:"lp_msisdn_hits,omitempty"`
-	MoTotal              *counter `json:"mo,omitempty"`
-	MoChargeSuccess      *counter `json:"mo_charge_success,omitempty"`
-	MoChargeSum          *counter `json:"mo_charge_sum,omitempty"`
-	MoChargeFailed       *counter `json:"mo_charge_failed,omitempty"`
-	MoRejected           *counter `json:"mo_rejected,omitempty"`
-	Outflow              *counter `json:"outflow,omitempty"`
-	RenewalTotal         *counter `json:"renewal,omitempty"`
-	RenewalChargeSuccess *counter `json:"renewal_charge_success,omitempty"`
-	RenewalChargeSum     *counter `json:"renewal_charge_sum,omitempty"`
-	RenewalFailed        *counter `json:"renewal_failed,omitempty"`
-	Pixels               *counter `json:"pixels,omitempty"`
+	LpHits                 *counter `json:"lp_hits,omitempty"`
+	LpMsisdnHits           *counter `json:"lp_msisdn_hits,omitempty"`
+	MoTotal                *counter `json:"mo,omitempty"`
+	MoChargeSuccess        *counter `json:"mo_charge_success,omitempty"`
+	MoChargeSum            *counter `json:"mo_charge_sum,omitempty"`
+	MoChargeFailed         *counter `json:"mo_charge_failed,omitempty"`
+	MoRejected             *counter `json:"mo_rejected,omitempty"`
+	Outflow                *counter `json:"outflow,omitempty"`
+	RenewalTotal           *counter `json:"renewal,omitempty"`
+	RenewalChargeSuccess   *counter `json:"renewal_charge_success,omitempty"`
+	RenewalChargeSum       *counter `json:"renewal_charge_sum,omitempty"`
+	RenewalFailed          *counter `json:"renewal_failed,omitempty"`
+	InjectionTotal         *counter `json:"injection,omitempty"`
+	InjectionChargeSuccess *counter `json:"injection_charge_success,omitempty"`
+	InjectionChargeSum     *counter `json:"injection_charge_sum,omitempty"`
+	InjectionFailed        *counter `json:"injection_failed,omitempty"`
+	ExpiredTotal           *counter `json:"expired,omitempty"`
+	ExpiredChargeSuccess   *counter `json:"expired_charge_success,omitempty"`
+	ExpiredChargeSum       *counter `json:"expired_charge_sum,omitempty"`
+	ExpiredFailed          *counter `json:"expired_failed,omitempty"`
+	Pixels                 *counter `json:"pixels,omitempty"`
 }
 
 type counter struct {
@@ -84,10 +92,22 @@ func (a *adAggregate) Sum() int64 {
 		a.MoChargeSum.count +
 		a.MoChargeFailed.count +
 		a.MoRejected.count +
+
 		a.RenewalTotal.count +
 		a.RenewalChargeSuccess.count +
 		a.RenewalChargeSum.count +
 		a.RenewalFailed.count +
+
+		a.ExpiredTotal.count +
+		a.ExpiredChargeSuccess.count +
+		a.ExpiredChargeSum.count +
+		a.ExpiredFailed.count +
+
+		a.InjectionTotal.count +
+		a.InjectionChargeSuccess.count +
+		a.InjectionChargeSum.count +
+		a.InjectionFailed.count +
+
 		a.Outflow.count +
 		a.Pixels.count
 }
@@ -172,23 +192,35 @@ func (as *collectorService) send() {
 			aggregateSum = aggregateSum + coa.Sum()
 
 			aa := acceptor.Aggregate{
-				ReportAt:             time.Now().Unix(),
-				ProviderName:         as.conf.Provider,
-				CampaignId:           campaignId,
-				OperatorCode:         operatorCode,
-				LpHits:               coa.LpHits.count,
-				LpMsisdnHits:         coa.LpMsisdnHits.count,
-				MoTotal:              coa.MoTotal.count,
-				MoChargeSuccess:      coa.MoChargeSuccess.count,
-				MoChargeSum:          coa.MoChargeSum.count,
-				MoChargeFailed:       coa.MoChargeFailed.count,
-				MoRejected:           coa.MoRejected.count,
-				Outflow:              coa.Outflow.count,
+				ReportAt:        time.Now().Unix(),
+				ProviderName:    as.conf.Provider,
+				CampaignId:      campaignId,
+				OperatorCode:    operatorCode,
+				LpHits:          coa.LpHits.count,
+				LpMsisdnHits:    coa.LpMsisdnHits.count,
+				MoTotal:         coa.MoTotal.count,
+				MoChargeSuccess: coa.MoChargeSuccess.count,
+				MoChargeSum:     coa.MoChargeSum.count,
+				MoChargeFailed:  coa.MoChargeFailed.count,
+				MoRejected:      coa.MoRejected.count,
+				Outflow:         coa.Outflow.count,
+
 				RenewalTotal:         coa.RenewalTotal.count,
 				RenewalChargeSuccess: coa.RenewalChargeSuccess.count,
 				RenewalChargeSum:     coa.RenewalChargeSum.count,
 				RenewalFailed:        coa.RenewalFailed.count,
-				Pixels:               coa.Pixels.count,
+
+				InjectionTotal:         coa.InjectionTotal.count,
+				InjectionChargeSuccess: coa.InjectionChargeSuccess.count,
+				InjectionChargeSum:     coa.InjectionChargeSum.count,
+				InjectionFailed:        coa.InjectionFailed.count,
+
+				ExpiredTotal:         coa.ExpiredTotal.count,
+				ExpiredChargeSuccess: coa.ExpiredChargeSuccess.count,
+				ExpiredChargeSum:     coa.ExpiredChargeSum.count,
+				ExpiredFailed:        coa.ExpiredFailed.count,
+
+				Pixels: coa.Pixels.count,
 			}
 			data = append(data, aa)
 		}
@@ -202,10 +234,12 @@ func (as *collectorService) send() {
 			if err != nil {
 				m.Errors.Inc()
 				log.WithFields(log.Fields{"error": err.Error()}).Error("cannot send data")
+			} else {
+				if !resp.Ok {
+					log.WithFields(log.Fields{"reason": resp.Error}).Warn("haven't received the data")
+				}
 			}
-			if !resp.Ok {
-				log.WithFields(log.Fields{"reason": resp.Error}).Warn("haven't received the data")
-			}
+
 			log.WithFields(log.Fields{"count": len(data)}).Debug("added data to the archive")
 		} else {
 			queueJson, _ := json.Marshal(as.state.Archive)
@@ -238,12 +272,16 @@ func (as *collectorService) check(r Collect) error {
 	if r.CampaignId == 0 {
 		m.Errors.Inc()
 		m.ErrorCampaignIdEmpty.Inc()
+
+		log.WithField("collect", fmt.Sprintf("%#v", r)).Error("campaign id is empty")
 		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 
 	}
+
 	if r.OperatorCode == 0 {
 		m.Errors.Inc()
-		m.ErrorCampaignIdEmpty.Inc()
+		m.ErrorOperatorCodeEmpty.Inc()
+		log.WithField("collect", fmt.Sprintf("%#v", r)).Error("operator code is empty")
 	}
 	as.Lock()
 	defer as.Unlock()
@@ -259,21 +297,30 @@ func (as *collectorService) check(r Collect) error {
 	_, found = as.adReport[r.CampaignId][r.OperatorCode]
 	if !found {
 		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{
-			LpHits:               &counter{},
-			LpMsisdnHits:         &counter{},
-			MoTotal:              &counter{},
-			MoChargeSuccess:      &counter{},
-			MoChargeSum:          &counter{},
-			MoChargeFailed:       &counter{},
-			MoRejected:           &counter{},
-			Outflow:              &counter{},
-			RenewalTotal:         &counter{},
-			RenewalChargeSuccess: &counter{},
-			RenewalChargeSum:     &counter{},
-			RenewalFailed:        &counter{},
-			Pixels:               &counter{},
+			LpHits:                 &counter{},
+			LpMsisdnHits:           &counter{},
+			MoTotal:                &counter{},
+			MoChargeSuccess:        &counter{},
+			MoChargeSum:            &counter{},
+			MoChargeFailed:         &counter{},
+			MoRejected:             &counter{},
+			Outflow:                &counter{},
+			RenewalTotal:           &counter{},
+			RenewalChargeSuccess:   &counter{},
+			RenewalChargeSum:       &counter{},
+			RenewalFailed:          &counter{},
+			InjectionTotal:         &counter{},
+			InjectionChargeSuccess: &counter{},
+			InjectionChargeSum:     &counter{},
+			InjectionFailed:        &counter{},
+			ExpiredTotal:           &counter{},
+			ExpiredChargeSuccess:   &counter{},
+			ExpiredChargeSum:       &counter{},
+			ExpiredFailed:          &counter{},
+			Pixels:                 &counter{},
 		}
 	}
+
 	return nil
 }
 
@@ -314,16 +361,45 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		return nil
 	}
 
-	as.adReport[r.CampaignId][r.OperatorCode].RenewalTotal.Inc()
+	if strings.Contains(r.TransactionResult, "retry") {
+		as.adReport[r.CampaignId][r.OperatorCode].RenewalTotal.Inc()
 
-	if strings.Contains(r.TransactionResult, "paid") {
-		as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSuccess.Inc()
-		as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSum.Add(r.Price)
+		if strings.Contains(r.TransactionResult, "retry_paid") {
+			as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSuccess.Inc()
+			as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSum.Add(r.Price)
+		}
+
+		if strings.Contains(r.TransactionResult, "retry_failed") {
+			as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
+		}
 	}
 
-	if strings.Contains(r.TransactionResult, "failed") {
-		as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
+	if strings.Contains(r.TransactionResult, "injection") {
+		as.adReport[r.CampaignId][r.OperatorCode].InjectionTotal.Inc()
+
+		if strings.Contains(r.TransactionResult, "injection_paid") {
+			as.adReport[r.CampaignId][r.OperatorCode].InjectionChargeSuccess.Inc()
+			as.adReport[r.CampaignId][r.OperatorCode].InjectionChargeSum.Add(r.Price)
+		}
+
+		if strings.Contains(r.TransactionResult, "injection_failed") {
+			as.adReport[r.CampaignId][r.OperatorCode].InjectionFailed.Inc()
+		}
 	}
+
+	if strings.Contains(r.TransactionResult, "expired") {
+		as.adReport[r.CampaignId][r.OperatorCode].ExpiredTotal.Inc()
+
+		if strings.Contains(r.TransactionResult, "expired_paid") {
+			as.adReport[r.CampaignId][r.OperatorCode].ExpiredChargeSuccess.Inc()
+			as.adReport[r.CampaignId][r.OperatorCode].ExpiredChargeSum.Add(r.Price)
+		}
+
+		if strings.Contains(r.TransactionResult, "expired_failed") {
+			as.adReport[r.CampaignId][r.OperatorCode].ExpiredFailed.Inc()
+		}
+	}
+
 	return nil
 }
 
