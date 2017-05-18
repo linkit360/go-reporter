@@ -26,6 +26,7 @@ type Collector interface {
 }
 
 type Collect struct {
+	Tid               string `json:"tid,omitempty"`
 	CampaignId        int64  `json:"id_campaign,omitempty"`
 	OperatorCode      int64  `json:"operator_code,omitempty"`
 	Msisdn            string `json:"msisdn,omitempty"`
@@ -179,6 +180,7 @@ func (as *collectorService) loadState() error {
 func (as *collectorService) send() {
 	as.Lock()
 	defer as.Unlock()
+
 	begin := time.Now()
 	var data []acceptor.Aggregate
 	aggregateSum := int64(.0)
@@ -192,33 +194,30 @@ func (as *collectorService) send() {
 			aggregateSum = aggregateSum + coa.Sum()
 
 			aa := acceptor.Aggregate{
-				ReportAt:        time.Now().Unix(),
-				ProviderName:    as.conf.Provider,
-				CampaignId:      campaignId,
-				OperatorCode:    operatorCode,
-				LpHits:          coa.LpHits.count,
-				LpMsisdnHits:    coa.LpMsisdnHits.count,
-				MoTotal:         coa.MoTotal.count,
-				MoChargeSuccess: coa.MoChargeSuccess.count,
-				MoChargeSum:     coa.MoChargeSum.count,
-				MoChargeFailed:  coa.MoChargeFailed.count,
-				MoRejected:      coa.MoRejected.count,
-				Outflow:         coa.Outflow.count,
-
-				RenewalTotal:         coa.RenewalTotal.count,
-				RenewalChargeSuccess: coa.RenewalChargeSuccess.count,
-				RenewalChargeSum:     coa.RenewalChargeSum.count,
-				RenewalFailed:        coa.RenewalFailed.count,
-
+				ReportAt:               time.Now().Unix(),
+				ProviderName:           as.conf.Provider,
+				CampaignId:             campaignId,
+				OperatorCode:           operatorCode,
+				LpHits:                 coa.LpHits.count,
+				LpMsisdnHits:           coa.LpMsisdnHits.count,
+				MoTotal:                coa.MoTotal.count,
+				MoChargeSuccess:        coa.MoChargeSuccess.count,
+				MoChargeSum:            coa.MoChargeSum.count,
+				MoChargeFailed:         coa.MoChargeFailed.count,
+				MoRejected:             coa.MoRejected.count,
+				Outflow:                coa.Outflow.count,
+				RenewalTotal:           coa.RenewalTotal.count,
+				RenewalChargeSuccess:   coa.RenewalChargeSuccess.count,
+				RenewalChargeSum:       coa.RenewalChargeSum.count,
+				RenewalFailed:          coa.RenewalFailed.count,
 				InjectionTotal:         coa.InjectionTotal.count,
 				InjectionChargeSuccess: coa.InjectionChargeSuccess.count,
 				InjectionChargeSum:     coa.InjectionChargeSum.count,
 				InjectionFailed:        coa.InjectionFailed.count,
-
-				ExpiredTotal:         coa.ExpiredTotal.count,
-				ExpiredChargeSuccess: coa.ExpiredChargeSuccess.count,
-				ExpiredChargeSum:     coa.ExpiredChargeSum.count,
-				ExpiredFailed:        coa.ExpiredFailed.count,
+				ExpiredTotal:           coa.ExpiredTotal.count,
+				ExpiredChargeSuccess:   coa.ExpiredChargeSuccess.count,
+				ExpiredChargeSum:       coa.ExpiredChargeSum.count,
+				ExpiredFailed:          coa.ExpiredFailed.count,
 
 				Pixels: coa.Pixels.count,
 			}
@@ -358,6 +357,7 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		if r.TransactionResult == "failed" {
 			as.adReport[r.CampaignId][r.OperatorCode].MoChargeFailed.Inc()
 		}
+		log.WithField("tid", r.Tid).Debug("mo")
 		return nil
 	}
 
@@ -372,6 +372,8 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		if strings.Contains(r.TransactionResult, "retry_failed") {
 			as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
 		}
+		log.WithField("tid", r.Tid).Debug("retry")
+		return nil
 	}
 
 	if strings.Contains(r.TransactionResult, "injection") {
@@ -385,6 +387,8 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		if strings.Contains(r.TransactionResult, "injection_failed") {
 			as.adReport[r.CampaignId][r.OperatorCode].InjectionFailed.Inc()
 		}
+		log.WithField("tid", r.Tid).Debug("injection")
+		return nil
 	}
 
 	if strings.Contains(r.TransactionResult, "expired") {
@@ -398,6 +402,8 @@ func (as *collectorService) IncTransaction(r Collect) error {
 		if strings.Contains(r.TransactionResult, "expired_failed") {
 			as.adReport[r.CampaignId][r.OperatorCode].ExpiredFailed.Inc()
 		}
+		log.WithField("tid", r.Tid).Debug("expired")
+		return nil
 	}
 
 	return nil
@@ -413,6 +419,7 @@ func (as *collectorService) IncOutflow(r Collect) error {
 	if strings.Contains(r.TransactionResult, "inact") ||
 		strings.Contains(r.TransactionResult, "purge") ||
 		strings.Contains(r.TransactionResult, "cancel") {
+		log.WithField("tid", r.Tid).Debug("outflow")
 		as.adReport[r.CampaignId][r.OperatorCode].Outflow.Inc()
 	}
 	return nil
@@ -424,6 +431,7 @@ func (as *collectorService) IncPixel(r Collect) error {
 	}
 	as.Lock()
 	defer as.Unlock()
+	log.WithField("tid", r.Tid).Debug("pixel")
 	as.adReport[r.CampaignId][r.OperatorCode].Pixels.Inc()
 	return nil
 }

@@ -59,6 +59,7 @@ type ReserveCh struct {
 type Metrics struct {
 	RPCConnectError     m.Gauge
 	RPCSuccess          m.Gauge
+	RPCDuration         prometheus.Summary
 	HitChanSize         prometheus.Gauge
 	OutflowChanSize     prometheus.Gauge
 	PixelChanSize       prometheus.Gauge
@@ -69,6 +70,7 @@ func initMetrics() *Metrics {
 	metrics := &Metrics{
 		RPCConnectError:     m.NewGauge("rpc", "reporter", "errors", "RPC call errors"),
 		RPCSuccess:          m.NewGauge("rpc", "reporter", "success", "RPC call success"),
+		RPCDuration:         m.NewSummary("rpc_reporter_duration_seconds", "RPC call duration seconds"),
 		HitChanSize:         m.PrometheusGauge("rpc", "reporter", "hit_chan_size", "hit chan size"),
 		OutflowChanSize:     m.PrometheusGauge("rpc", "reporter", "outflow_chan_size", "outflow chan size"),
 		PixelChanSize:       m.PrometheusGauge("rpc", "reporter", "pixel_chan_size", "pixel chan size"),
@@ -293,7 +295,9 @@ retry:
 		"func": funcName,
 		"took": time.Since(begin),
 	}).Debug("rpccall")
+
 	cli.m.RPCSuccess.Inc()
+	cli.m.RPCDuration.Observe(time.Since(begin).Seconds())
 	return nil
 }
 
