@@ -21,7 +21,7 @@ func init() {
 
 func Test(t *testing.T) {
 	r := collector.Collect{
-		CampaignId:        1,
+		CampaignCode:      1,
 		OperatorCode:      41001,
 		Msisdn:            "1234",
 		TransactionResult: "paid",

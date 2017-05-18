@@ -27,7 +27,7 @@ type Collector interface {
 
 type Collect struct {
 	Tid               string `json:"tid,omitempty"`
-	CampaignId        int64  `json:"id_campaign,omitempty"`
+	CampaignCode      string `json:"campaign_code,omitempty"`
 	OperatorCode      int64  `json:"operator_code,omitempty"`
 	Msisdn            string `json:"msisdn,omitempty"`
 	TransactionResult string `json:"transaction_result,omitempty"`
@@ -40,7 +40,7 @@ type collectorService struct {
 	conf     config.CollectorConfig
 	state    CollectorState
 	db       *sql.DB
-	adReport map[int64]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
+	adReport map[string]OperatorAgregate // map[campaign][operator]acceptor.Aggregate
 }
 
 type OperatorAgregate map[int64]adAggregate
@@ -126,7 +126,7 @@ func Init(appConfig config.AppConfig) Collector {
 		log.Error("cannot init acceptor client")
 	}
 
-	as.adReport = make(map[int64]OperatorAgregate)
+	as.adReport = make(map[string]OperatorAgregate)
 	go func() {
 		for range time.Tick(time.Second) {
 			as.send()
@@ -185,7 +185,7 @@ func (as *collectorService) send() {
 	var data []acceptor.Aggregate
 	aggregateSum := int64(.0)
 
-	for campaignId, operatorAgregate := range as.adReport {
+	for campaignCode, operatorAgregate := range as.adReport {
 		for operatorCode, coa := range operatorAgregate {
 			if coa.Sum() == 0 {
 				continue
@@ -196,7 +196,7 @@ func (as *collectorService) send() {
 			aa := acceptor.Aggregate{
 				ReportAt:               time.Now().Unix(),
 				ProviderName:           as.conf.Provider,
-				CampaignId:             campaignId,
+				CampaignCode:           campaignCode,
 				OperatorCode:           operatorCode,
 				LpHits:                 coa.LpHits.count,
 				LpMsisdnHits:           coa.LpMsisdnHits.count,
@@ -268,11 +268,11 @@ func (as *collectorService) breathe() {
 
 // map[campaign][operator]acceptor.Aggregate
 func (as *collectorService) check(r Collect) error {
-	if r.CampaignId == 0 {
+	if r.CampaignCode == "" {
 		m.Errors.Inc()
 		m.ErrorCampaignIdEmpty.Inc()
 
-		log.WithField("collect", fmt.Sprintf("%#v", r)).Error("campaign id is empty")
+		log.WithField("collect", fmt.Sprintf("%#v", r)).Error("campaign code is empty")
 		return fmt.Errorf("CampaignIdEmpty: %#v", r)
 
 	}
@@ -287,15 +287,15 @@ func (as *collectorService) check(r Collect) error {
 	// operator code == 0
 	// unknown operator in access campaign
 	if as.adReport == nil {
-		as.adReport = make(map[int64]OperatorAgregate)
+		as.adReport = make(map[string]OperatorAgregate)
 	}
-	_, found := as.adReport[r.CampaignId]
+	_, found := as.adReport[r.CampaignCode]
 	if !found {
-		as.adReport[r.CampaignId] = OperatorAgregate{}
+		as.adReport[r.CampaignCode] = OperatorAgregate{}
 	}
-	_, found = as.adReport[r.CampaignId][r.OperatorCode]
+	_, found = as.adReport[r.CampaignCode][r.OperatorCode]
 	if !found {
-		as.adReport[r.CampaignId][r.OperatorCode] = adAggregate{
+		as.adReport[r.CampaignCode][r.OperatorCode] = adAggregate{
 			LpHits:                 &counter{},
 			LpMsisdnHits:           &counter{},
 			MoTotal:                &counter{},
@@ -331,9 +331,9 @@ func (as *collectorService) IncHit(r Collect) error {
 	as.Lock()
 	defer as.Unlock()
 
-	as.adReport[r.CampaignId][r.OperatorCode].LpHits.Inc()
+	as.adReport[r.CampaignCode][r.OperatorCode].LpHits.Inc()
 	if r.Msisdn != "" {
-		as.adReport[r.CampaignId][r.OperatorCode].LpMsisdnHits.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].LpMsisdnHits.Inc()
 	}
 	return nil
 }
@@ -346,61 +346,61 @@ func (as *collectorService) IncTransaction(r Collect) error {
 	defer as.Unlock()
 
 	if r.AttemptsCount == 0 {
-		as.adReport[r.CampaignId][r.OperatorCode].MoTotal.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].MoTotal.Inc()
 		if r.TransactionResult == "paid" {
-			as.adReport[r.CampaignId][r.OperatorCode].MoChargeSuccess.Inc()
-			as.adReport[r.CampaignId][r.OperatorCode].MoChargeSum.Add(r.Price)
+			as.adReport[r.CampaignCode][r.OperatorCode].MoChargeSuccess.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].MoChargeSum.Add(r.Price)
 		}
 		if r.TransactionResult == "rejected" {
-			as.adReport[r.CampaignId][r.OperatorCode].MoRejected.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].MoRejected.Inc()
 		}
 		if r.TransactionResult == "failed" {
-			as.adReport[r.CampaignId][r.OperatorCode].MoChargeFailed.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].MoChargeFailed.Inc()
 		}
 		log.WithField("tid", r.Tid).Debug("mo")
 		return nil
 	}
 
 	if strings.Contains(r.TransactionResult, "retry") {
-		as.adReport[r.CampaignId][r.OperatorCode].RenewalTotal.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].RenewalTotal.Inc()
 
 		if strings.Contains(r.TransactionResult, "retry_paid") {
-			as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSuccess.Inc()
-			as.adReport[r.CampaignId][r.OperatorCode].RenewalChargeSum.Add(r.Price)
+			as.adReport[r.CampaignCode][r.OperatorCode].RenewalChargeSuccess.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].RenewalChargeSum.Add(r.Price)
 		}
 
 		if strings.Contains(r.TransactionResult, "retry_failed") {
-			as.adReport[r.CampaignId][r.OperatorCode].RenewalFailed.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].RenewalFailed.Inc()
 		}
 		log.WithField("tid", r.Tid).Debug("retry")
 		return nil
 	}
 
 	if strings.Contains(r.TransactionResult, "injection") {
-		as.adReport[r.CampaignId][r.OperatorCode].InjectionTotal.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].InjectionTotal.Inc()
 
 		if strings.Contains(r.TransactionResult, "injection_paid") {
-			as.adReport[r.CampaignId][r.OperatorCode].InjectionChargeSuccess.Inc()
-			as.adReport[r.CampaignId][r.OperatorCode].InjectionChargeSum.Add(r.Price)
+			as.adReport[r.CampaignCode][r.OperatorCode].InjectionChargeSuccess.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].InjectionChargeSum.Add(r.Price)
 		}
 
 		if strings.Contains(r.TransactionResult, "injection_failed") {
-			as.adReport[r.CampaignId][r.OperatorCode].InjectionFailed.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].InjectionFailed.Inc()
 		}
 		log.WithField("tid", r.Tid).Debug("injection")
 		return nil
 	}
 
 	if strings.Contains(r.TransactionResult, "expired") {
-		as.adReport[r.CampaignId][r.OperatorCode].ExpiredTotal.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].ExpiredTotal.Inc()
 
 		if strings.Contains(r.TransactionResult, "expired_paid") {
-			as.adReport[r.CampaignId][r.OperatorCode].ExpiredChargeSuccess.Inc()
-			as.adReport[r.CampaignId][r.OperatorCode].ExpiredChargeSum.Add(r.Price)
+			as.adReport[r.CampaignCode][r.OperatorCode].ExpiredChargeSuccess.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].ExpiredChargeSum.Add(r.Price)
 		}
 
 		if strings.Contains(r.TransactionResult, "expired_failed") {
-			as.adReport[r.CampaignId][r.OperatorCode].ExpiredFailed.Inc()
+			as.adReport[r.CampaignCode][r.OperatorCode].ExpiredFailed.Inc()
 		}
 		log.WithField("tid", r.Tid).Debug("expired")
 		return nil
@@ -420,7 +420,7 @@ func (as *collectorService) IncOutflow(r Collect) error {
 		strings.Contains(r.TransactionResult, "purge") ||
 		strings.Contains(r.TransactionResult, "cancel") {
 		log.WithField("tid", r.Tid).Debug("outflow")
-		as.adReport[r.CampaignId][r.OperatorCode].Outflow.Inc()
+		as.adReport[r.CampaignCode][r.OperatorCode].Outflow.Inc()
 	}
 	return nil
 }
@@ -432,6 +432,6 @@ func (as *collectorService) IncPixel(r Collect) error {
 	as.Lock()
 	defer as.Unlock()
 	log.WithField("tid", r.Tid).Debug("pixel")
-	as.adReport[r.CampaignId][r.OperatorCode].Pixels.Inc()
+	as.adReport[r.CampaignCode][r.OperatorCode].Pixels.Inc()
 	return nil
 }
